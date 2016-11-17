@@ -13,15 +13,15 @@ def ma(sdf, ma_num=(5, 10, 20, 30, 60)):
     """
     ma(sdf, ma_num=[5, 10, 20, 30, 60]):
 
-    Compute MA for stock's DataFrame
+    计算一组移动平均线
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['close']
 
-        ma_num: (list or tuple): MA lines to compute
+        ma_num: (list of int): 要计算的移动平均线的时间窗，如[5,10,...]
 
     Output:
-        (DataFrame): DataFrame with columns' names ['MA_'+num, ...]
+        (DataFrame): 移动平均线数据，形如['MA_5', ...]
     """
     tdf = _sort(sdf)
     name_list = list()
@@ -38,15 +38,15 @@ def expma(sdf, expma_num=(5, 10, 20, 30, 60)):
     """
     expma(sdf, expma_num=[5, 10, 20, 30, 60]):
 
-    Compute EXPMA for stock's DataFrame
+    计算一组指数平均线
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['close']
 
-        expma_num: (list or tuple): EXPMA lines to compute
+        expma_num: (list of int): 要计算的移动平均线的时间窗，如[5,10,...]
 
     Output:
-        (DataFrame): DataFrame with columns' names ['EXPMA_'+num, ...]
+        (DataFrame): 指数移动平均线数据，形如['EXPMA_5', ...]
     """
     tdf =_sort(sdf)
     name_list = list()
@@ -63,13 +63,13 @@ def bbi(sdf):
     """
     bbi(sdf):
 
-    Compute BBI for stock's DataFrame
+    计算BBI
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['close']
 
     Output:
-        (DataFrame): DataFrame with column's name ['BBI']
+        (DataFrame): BBI指标数据，包含['BBI']
     """
     tdf = _sort(sdf)
     name_list = list()
@@ -79,7 +79,9 @@ def bbi(sdf):
         name = 'MA_' + str(n)
         name_list.append(name)
         tdf[name] = round(ma_n, 2)
-    rdf['BBI'] = tdf[name_list].apply(sum, axis=1)/4
+    tmp = tdf[name_list].apply(sum, axis=1)/4
+    dic = {'BBI': tmp}
+    rdf = pd.DataFrame(dic)
     return rdf
 
 
@@ -87,19 +89,19 @@ def macd(sdf, fast=12, slow=26, avg=9):
     """
     macd(sdf, fast=12, slow=26, avg=9):
 
-    Compute MACD for stock's DataFrame
+    计算MACD
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['close']
 
-        fast: (int): number of days for fast line of MACD_DIFF
+        fast: (int): DIFF中的快线时间窗
 
-        slow: (int): number of days for slow line of MACD_DIFF
+        slow: (int): DIFF中的慢线时间窗
 
-        avg: (int): number for smoothing MACD_DEA
+        avg: (int): DEA中的平滑时间窗
 
     Output:
-        (DataFrame): DataFrame with column's name ['MACD_DIFF', 'MACD_DEA', 'MACD_BAR']
+        (DataFrame): MACD指标，包含['MACD_DIFF', 'MACD_DEA', 'MACD_BAR']
     """
     tdf = _sort(sdf)
     ema_fast = round(tdf['close'].ewm(span=fast, adjust=False).mean(), 2)
@@ -107,10 +109,8 @@ def macd(sdf, fast=12, slow=26, avg=9):
     diff = ema_fast - ema_slow
     dea = round(diff.ewm(span=avg, adjust=False).mean(), 2)
     bar = 2 * (diff - dea)
-    tdf['MACD_BAR'] = bar
-    tdf['MACD_DIFF'] = diff
-    tdf['MACD_DEA'] = dea
-    rdf = tdf[['MACD_BAR', 'MACD_DIFF', 'MACD_DEA']]
+    dic = {'MACD_BAR': bar, 'MACD_DIFF': diff, 'MACD_DEA': dea}
+    rdf = pd.DataFrame(dic)
     return rdf
 
 
@@ -118,17 +118,17 @@ def kdj(sdf, n=9, m=3):
     """
     kdj(sdf, n=9, m=3):
 
-    Compute KDJ for stock's DataFrame
+    计算KDJ指标
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['high', 'low', 'close']
 
-        n: (int): window number for RSV
+        n: (int): RSV的时间窗
 
-        m: (int): expma days for K and D
+        m: (int): K线和D线的指数平均线的时间窗
 
     Output:
-        (DataFrame): DataFrame with column's name ['KDJ_K', 'KDJ_D', 'KDJ_J']
+        (DataFrame): KDJ指标，包含['KDJ_K', 'KDJ_D', 'KDJ_J']
     """
     tdf = _sort(sdf)
     low_list = tdf['low'].rolling(window=n, center=False).min()
@@ -145,10 +145,8 @@ def kdj(sdf, n=9, m=3):
         kdj_k[len(kdj_k) - 1] = 11.1
     kdj_d = round(kdj_k.ewm(com=m - 1, adjust=False).mean(), 1)
     kdj_j = 3 * kdj_k - 2 * kdj_d
-    tdf['KDJ_K'] = kdj_k
-    tdf['KJD_D'] = kdj_d
-    tdf['KDJ_J'] = kdj_j
-    rdf = tdf[['KDJ_K', 'KDJ_D', 'KDJ_J']]
+    dic = {'KDJ_K': kdj_k, 'KJD_D': kdj_d, 'KDJ_J': kdj_j}
+    rdf = pd.DataFrame(dic)
     return rdf
 
 
@@ -156,15 +154,15 @@ def rsi(sdf, n=(6, 12, 24)):
     """
     rsi(sdf, n=[6, 12, 24]):
 
-    Compute RSI for stock's DataFrame
+    计算一组RSI指标
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['close']
 
-        n: (list or tuple): RSI lines to compute
+        n: (list or tuple): 要计算的RSI的时间窗，如[6,12,...]
 
     Output:
-        (DataFrame): DataFrame with columns' names ['RSI_'+num, ...]
+        (DataFrame): RSI数据，形如['RSI_6', ...]
     """
     tdf = _sort(sdf)
     name_list = list()
@@ -182,22 +180,22 @@ def wr(sdf, period=14):
     """
     wr(sdf, period=14):
 
-    Compute WILLR for stock's DataFrame
+    计算WILLR指标
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括['high', 'low', 'close']
 
-        period: (int): period for WILLR
+        period: (int): WILLR指标的时间窗
 
     Output:
-        (DataFrame): DataFrame with column's name ['WR']
+        (DataFrame): WR数据，包含['WR']
     """
     tdf = _sort(sdf)
     high = tdf['high'].values
     low = tdf['low'].values
     close = tdf['close'].values
-    wr = talib.WILLR(high , low, close, period) * -1
-    dic = ('WR': wr)
+    tmp = talib.WILLR(high , low, close, period) * -1
+    dic = ('WR': tmp)
     rdf = pd.DataFrame(dic)
     return rdf
 
@@ -206,17 +204,17 @@ def boll(sdf,n=20, std=2):
     """
     boll(sdf,n=20, std=2):
 
-    Compute BOLL for stock's DataFrame
+    计算BOLL线
 
     Input:
-        sdf: (DataFrame): DataFrame of stock
+        sdf: (DataFrame): 股票数据，至少包括[close']
 
-        n: (int): number of days to compute standard
+        n: (int): 计算标准差的时间窗
 
-        std: (int): times of standard
+        std: (int): 标准差的倍数
 
     Output:
-        (DataFrame): DataFrame with column's name ['BOLL_MD', 'BOLL_UPPER', 'BOLL_LOWER']
+        (DataFrame): BOLL数据，包含['BOLL_MD', 'BOLL_UPPER', 'BOLL_LOWER']
     """
     tdf = _sort(sdf)
     mid = tdf['close'].rolling(center=False, window=n).mean()
