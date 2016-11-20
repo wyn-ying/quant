@@ -1,6 +1,11 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 from sqlalchemy import create_engine
 import pandas as pd
-from utils import PATH, DB_PATH
+from utils import PATH, DB_PATH, _sort
+
+
 
 def get_connection(stock_pool='0'):
     """
@@ -14,7 +19,7 @@ def get_connection(stock_pool='0'):
     Return:
         conn: a handle of connection
     """
-    conn = create_engine(DB_PATH+'/stock_ts_hfq_d_' + stock_pool)
+    conn = create_engine(DB_PATH+'/stock_' + stock_pool)
     return conn
 
 
@@ -32,10 +37,33 @@ def get_stock_list(stock_pool='0'):
     """
     conn = get_connection(stock_pool=stock_pool)
     tdf = pd.read_sql("select table_name from information_schema.tables \
-                            where table_schema='stock_ts_hfq_d_" + stock_pool \
+                            where table_schema='stock_" + stock_pool \
                             + "' and table_type='base table';", conn)
     test_list = tdf['table_name'].values
     return test_list
+
+
+def get_df(code, conn=None):
+    """
+    get_df(code, conn=None):
+
+    Get the sorted dataframe of stock
+
+    Input:
+        code: (string): stock code with or without pool code, like 'sh603588', '300121'
+        conn: connection handle of the code, if None it will be slow to create handle locally based on parameter 'code'.
+
+    Return:
+        Array: list of stock codes, , like ['sh600001', 'sh600002', ...]
+    """
+    if len(code) == 6:
+        code = ('sh' if code[0]=='6' else 'sz') + code
+    if conn is None:
+        conn = get_connection(stock_pool=code[2])
+    sql = "select distinct * from "+code_name+";"
+    df = pd.read_sql(sql, conn)
+    df = _sort(df)
+    return df
 
 
 def remove_duplication(code_list):

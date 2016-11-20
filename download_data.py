@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import tushare as ts
 import pandas as pd
 from qntstock.database import get_connection

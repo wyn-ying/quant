@@ -1,8 +1,22 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import pandas as pd
 import talib
 
 
-def _sort(sdf):
+def sort(sdf):
+    """
+    sort(sdf):
+
+    对股票数据按时间排序，并重新索引
+
+    Input:
+        sdf: (DataFrame): 股票数据，至少包括['date']
+
+    Output:
+        (DataFrame): 按时间排好序到股票数据
+    """
     tdf = sdf.sort_values(by="date")
     tdf = tdf.reset_index()
     tdf = tdf.drop('index', axis=1)
@@ -16,14 +30,13 @@ def ma(sdf, ma_num=(5, 10, 20, 30, 60)):
     计算一组移动平均线
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['close']
 
         ma_num: (list of int): 要计算的移动平均线的时间窗，如[5,10,...]
 
     Output:
         (DataFrame): 移动平均线数据，形如['MA_5', ...]
     """
-    tdf = _sort(sdf)
     name_list = list()
     for n in ma_num:
         ma_n = tdf['close'].rolling(center=False, window=n).mean()
@@ -41,14 +54,13 @@ def expma(sdf, expma_num=(5, 10, 20, 30, 60)):
     计算一组指数平均线
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['close']
 
         expma_num: (list of int): 要计算的移动平均线的时间窗，如[5,10,...]
 
     Output:
         (DataFrame): 指数移动平均线数据，形如['EXPMA_5', ...]
     """
-    tdf =_sort(sdf)
     name_list = list()
     for n in expma_num:
         expma_n = tdf['close'].ewm(span=n, adjust=False).mean()
@@ -66,12 +78,11 @@ def bbi(sdf):
     计算BBI
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['close']
 
     Output:
         (DataFrame): BBI指标数据，包含['BBI']
     """
-    tdf = _sort(sdf)
     name_list = list()
     rdf=pd.DataFrame()
     for n in (3, 6, 12, 24):
@@ -92,7 +103,7 @@ def macd(sdf, fast=12, slow=26, avg=9):
     计算MACD
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['close']
 
         fast: (int): DIFF中的快线时间窗
 
@@ -103,7 +114,6 @@ def macd(sdf, fast=12, slow=26, avg=9):
     Output:
         (DataFrame): MACD指标，包含['MACD_DIFF', 'MACD_DEA', 'MACD_BAR']
     """
-    tdf = _sort(sdf)
     ema_fast = round(tdf['close'].ewm(span=fast, adjust=False).mean(), 2)
     ema_slow = round(tdf['close'].ewm(span=slow, adjust=False).mean(), 2)
     diff = ema_fast - ema_slow
@@ -121,7 +131,7 @@ def kdj(sdf, n=9, m=3):
     计算KDJ指标
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['high', 'low', 'close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['high', 'low', 'close']
 
         n: (int): RSV的时间窗
 
@@ -130,7 +140,6 @@ def kdj(sdf, n=9, m=3):
     Output:
         (DataFrame): KDJ指标，包含['KDJ_K', 'KDJ_D', 'KDJ_J']
     """
-    tdf = _sort(sdf)
     low_list = tdf['low'].rolling(window=n, center=False).min()
     low_list = low_list.fillna(value=tdf['low'].expanding(min_periods=1).min())
     high_list = tdf['high'].rolling(window=n, center=False).max()
@@ -157,14 +166,13 @@ def rsi(sdf, n=(6, 12, 24)):
     计算一组RSI指标
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['close']
 
         n: (list or tuple): 要计算的RSI的时间窗，如[6,12,...]
 
     Output:
         (DataFrame): RSI数据，形如['RSI_6', ...]
     """
-    tdf = _sort(sdf)
     name_list = list()
     for num in n:
         rsi_n = talib.RSI(tdf['close'].values, timeperiod=num)
@@ -183,14 +191,13 @@ def wr(sdf, period=14):
     计算WILLR指标
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['high', 'low', 'close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括['high', 'low', 'close']
 
         period: (int): WILLR指标的时间窗
 
     Output:
         (DataFrame): WR数据，包含['WR']
     """
-    tdf = _sort(sdf)
     high = tdf['high'].values
     low = tdf['low'].values
     close = tdf['close'].values
@@ -207,7 +214,7 @@ def boll(sdf,n=20, std=2):
     计算BOLL线
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括[close']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括[close']
 
         n: (int): 计算标准差的时间窗
 
@@ -216,7 +223,6 @@ def boll(sdf,n=20, std=2):
     Output:
         (DataFrame): BOLL数据，包含['BOLL_MD', 'BOLL_UPPER', 'BOLL_LOWER']
     """
-    tdf = _sort(sdf)
     mid = tdf['close'].rolling(center=False, window=n).mean()
     std_line = tdf['close'].rolling(center=False, window=n).std()
     ub = mid + std * std_line

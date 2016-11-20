@@ -1,15 +1,11 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import pandas as pd
+from qntstock.factor_base_func import *
 
 
-def _cross(df, judg):
-    sign = df[judg].map(lambda x: 1 if x > 0 else -1 if x < 0 else 0)
-    cross = sign.diff()
-    sign = sign * cross
-    sign = sign.map(lambda x: 1 if x > 0 else -1 if x < 0 else 0)
-    return sign
-
-
-def factor_macd_cross_1(sdf, fast=12, slow=26, avg=9):
+def factor_macd_cross(sdf, fast=12, slow=26, avg=9):
     """
     factor_macd_cross(sdf, fast=12, slow=26, avg=9):
 
@@ -28,13 +24,42 @@ def factor_macd_cross_1(sdf, fast=12, slow=26, avg=9):
         (DataFrame): MACD交叉信号，包含['MACD_CROSS']
     """
     rdf = macd(sdf, fast, slow, avg)
-    sign = _cross(sdf, 'MACD_BAR')
+    sign = _cross_c(sdf['MACD_BAR'])
     dic = {'MACD_CROSS': sign}
     rdf = pd.DataFrame(dic)
     return rdf
 
 
-def factor_bbi_cross_1(sdf):
+def factor_macd_inflection(sdf, fast=12, slow=26, avg=9):
+    """
+    factor_macd_cross(sdf, fast=12, slow=26, avg=9):
+
+    计算MACD拐头信号，MACD向上拐头当天1,向下拐头当天为-1,其他为0
+
+    Input:
+        sdf: (DataFrame): 股票数据，至少包括['close']
+
+        fast: (int): DIFF中的快线时间窗
+
+        slow: (int): DIFF中的慢线时间窗
+
+        avg: (int): DEA中的平滑时间窗
+
+    Output:
+        (DataFrame): MACD交叉信号，包含['MACD_INFL', 'MACD_DIFF_INFL', 'MACD_DEA_INFL']
+    """
+    rdf = macd(sdf, fast, slow, avg)
+    sign = _inflection_c(sdf, 'MACD_BAR')
+    dic = {'MACD_INFL': sign}
+    sign = _inflection_c(sdf, 'MACD_DIFF')
+    dic = {'MACD_DIFF_INFL': sign}
+    sign = _inflection_c(sdf, 'MACD_DEA')
+    dic = {'MACD_DEA_INFL': sign}
+    rdf = pd.DataFrame(dic)
+    return rdf
+
+
+def factor_bbi_cross(sdf):
     """
     factor_bbi_cross_1(sdf):
 
@@ -48,7 +73,7 @@ def factor_bbi_cross_1(sdf):
     """
     rdf = bbi(sdf)
     rdf['BAR'] = rdf['BBI']-sdf['close']
-    sign = _cross(sdf, 'BAR')
+    sign = _cross_c(sdf['BAR'])
     dic = {'BBI_CROSS': sign}
     rdf = pd.DataFrame(dic)
     return rdf
