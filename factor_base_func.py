@@ -12,7 +12,7 @@ def sign(line, strict=True):
     """
     signal = line.map(lambda x: 1 if x > 0 else -1 if x < 0 else 0)
     if strict is False:
-        idx = sorted(np.where(signal != 0)[0])
+        idx = sorted(np.where(signal == 0)[0])
         for i in range(1,len(idx)):
             signal[idx[i]] = signal[idx[i]-1]
     return signal
@@ -30,7 +30,7 @@ def upper_than(line1, line2, strict=True):
     return signal
 
 
-def lower_than(line1, line2):
+def lower_than(line1, line2, strict=True):
     """
     line1低于line2为1，高于则为0
     strict=True时，line1 = line2则为0
@@ -49,18 +49,6 @@ def wave(line, strict=True):
     """
     w = line.diff()
     signal = sign(w, strict)
-    return signal
-
-
-def wave_c(line):
-    """
-    判断line走势。line向上行则为1，下行则为-1，走平则保持前一天的状态
-    """
-    w = line.diff()
-    signal = sign(w)
-    idx = sorted(np.where(signal != 0)[0])
-    for i in range(1,len(idx)):
-        signal[idx[i]] = signal[idx[i]-1]
     return signal
 
 
@@ -88,30 +76,11 @@ def cross(judge_line, base_line=None, strict=False):
     return signal
 
 
-def cross_c(judge_line, base_line=None):
-    """
-    判断judge_line是否穿过base_line，上穿当天1,下穿当天为-1,其他为0。
-    修正版本，保持上穿下穿的一致性。
-    两条线相交不算穿轴，若judge_line下踩base_line再向上不视为上穿，反之亦然。
-    """
-    if base_line is not None:
-        judge_line = judge_line - base_line
-    signal = cross(judge_line)
-    idx = np.where(signal != 0)[0]
-    j = 0
-    for i in range(1,len(idx)):
-        if signal[idx[i]] * signal[idx[j]] > 0:
-            signal[idx[i]] = 0
-        else:
-            j = i
-    return signal
-
-
 def inflection(line, strict=False):
     """
     判断line拐头，向上拐头当天1,向下拐头当天为-1,其他为0。
     strict=False时，前一天走平，当天向上或向下也视为拐头。
-    strict=True时，向上拐头和向下拐头严格交叉出现。
+    strict=True时，向上拐头和向下拐头严格交叉出现，连续上升或下降途中的走平不认为是拐头。
     """
     judge_line = line.diff()
     if len(judge_line) > 2:
@@ -120,26 +89,13 @@ def inflection(line, strict=False):
     return signal
 
 
-def inflection_c(line):
-    """
-    判断line拐头，向上拐头当天1,向下拐头当天为-1,其他为0。
-    修正版本，保持拐头的一致性，即向上拐头和向下拐头严格交叉出现。
-    若之前走平，当天向上或向下视为拐头。
-    """
-    judge_line = line.diff()
-    if len(judge_line) > 2:
-        judge_line[0] = judge_line[1]
-    signal = cross_c(judge_line)
-    return signal
-
-
 if __name__ == '__main__':
     df = pd.DataFrame({'a':[0,1,3,5,6,7,7,8,8,7,7,8,9,10,9,8,7,6,7,8]})
     df['diff1'] = df['a'].diff()
     df['inflection'] = inflection(df['a'])
-    df['inflection_c'] = inflection_c(df['a'])
+    df['inflection_c'] = inflection(df['a'], strict=True)
     df['testcross'] = df['a']-7
     df['cross'] = cross(df['testcross'])
-    df['cross_c'] = cross_c(df['testcross'])
+    df['cross_c'] = cross(df['testcross'], strict=True)
 
     print(df)
