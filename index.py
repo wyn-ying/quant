@@ -5,22 +5,58 @@ import pandas as pd
 import talib
 
 
-def sort(sdf):
+def hhv(sdf, name, num=(10,30,60)):
     """
-    sort(sdf):
+    hhv(sdf, name, num=(10,30,60)):
 
-    对股票数据按时间排序，并重新索引
+    计算一组移动最高值线
 
     Input:
-        sdf: (DataFrame): 股票数据，至少包括['date']
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括[name]
+
+        name: (string): 待求值的列名
+
+        n: (int): 求值周期
 
     Output:
-        (DataFrame): 按时间排好序到股票数据
+        (DataFrame): 移动最高值线数据，包含[name+'_HHV_'+num, ...]
     """
-    tdf = sdf.sort_values(by="date")
-    tdf = tdf.reset_index()
-    tdf = tdf.drop('index', axis=1)
-    return tdf
+    tdf=sdf.copy()
+    name_list = list()
+    for n in num:
+        hhv_tmp = tdf[name].rolling(center=False, window=n).mean()
+        new_name = name + '_HHV_' + str(n)
+        name_list.append(new_name)
+        tdf[new_name] = hhv_tmp
+    rdf = tdf[name_list]
+    return rdf
+
+
+def llv(sdf, name, num=(10,30,60)):
+    """
+    llv(sdf, name, num=(10,30,60)):
+
+    计算一组移动最低值线
+
+    Input:
+        sdf: (DataFrame): 按时间升序排好到股票数据，至少包括[name]
+
+        name: (string): 待求值的列名
+
+        n: (int): 求值周期
+
+    Output:
+        (DataFrame): 移动最低值线数据，包含[name+'_LLV_'+num, ...]
+    """
+    tdf=sdf.copy()
+    name_list = list()
+    for n in num:
+        llv_tmp = tdf[name].rolling(center=False, window=n).mean()
+        new_name = name + '_LLV_' + str(n)
+        name_list.append(new_name)
+        tdf[new_name] = llv_tmp
+    rdf = tdf[name_list]
+    return rdf
 
 
 def ma(sdf, ma_num=(5, 10, 20, 30, 60)):
@@ -37,6 +73,7 @@ def ma(sdf, ma_num=(5, 10, 20, 30, 60)):
     Output:
         (DataFrame): 移动平均线数据，形如['MA_5', ...]
     """
+    tdf=sdf.copy()
     name_list = list()
     for n in ma_num:
         ma_n = tdf['close'].rolling(center=False, window=n).mean()
@@ -61,6 +98,7 @@ def expma(sdf, expma_num=(5, 10, 20, 30, 60)):
     Output:
         (DataFrame): 指数移动平均线数据，形如['EXPMA_5', ...]
     """
+    tdf=sdf.copy()
     name_list = list()
     for n in expma_num:
         expma_n = tdf['close'].ewm(span=n, adjust=False).mean()
@@ -83,6 +121,7 @@ def bbi(sdf):
     Output:
         (DataFrame): BBI指标数据，包含['BBI']
     """
+    tdf=sdf.copy()
     name_list = list()
     rdf=pd.DataFrame()
     for n in (3, 6, 12, 24):
@@ -114,6 +153,7 @@ def macd(sdf, fast=12, slow=26, avg=9):
     Output:
         (DataFrame): MACD指标，包含['MACD_DIFF', 'MACD_DEA', 'MACD_BAR']
     """
+    tdf=sdf.copy()
     ema_fast = round(tdf['close'].ewm(span=fast, adjust=False).mean(), 2)
     ema_slow = round(tdf['close'].ewm(span=slow, adjust=False).mean(), 2)
     diff = ema_fast - ema_slow
@@ -140,6 +180,7 @@ def kdj(sdf, n=9, m=3):
     Output:
         (DataFrame): KDJ指标，包含['KDJ_K', 'KDJ_D', 'KDJ_J']
     """
+    tdf=sdf.copy()
     low_list = tdf['low'].rolling(window=n, center=False).min()
     low_list = low_list.fillna(value=tdf['low'].expanding(min_periods=1).min())
     high_list = tdf['high'].rolling(window=n, center=False).max()
@@ -173,6 +214,7 @@ def rsi(sdf, n=(6, 12, 24)):
     Output:
         (DataFrame): RSI数据，形如['RSI_6', ...]
     """
+    tdf=sdf.copy()
     name_list = list()
     for num in n:
         rsi_n = talib.RSI(tdf['close'].values, timeperiod=num)
@@ -198,11 +240,12 @@ def wr(sdf, period=14):
     Output:
         (DataFrame): WR数据，包含['WR']
     """
+    tdf=sdf.copy()
     high = tdf['high'].values
     low = tdf['low'].values
     close = tdf['close'].values
     tmp = talib.WILLR(high , low, close, period) * -1
-    dic = ('WR': tmp)
+    dic = {'WR': tmp}
     rdf = pd.DataFrame(dic)
     return rdf
 
@@ -223,6 +266,7 @@ def boll(sdf,n=20, std=2):
     Output:
         (DataFrame): BOLL数据，包含['BOLL_MD', 'BOLL_UPPER', 'BOLL_LOWER']
     """
+    tdf=sdf.copy()
     mid = tdf['close'].rolling(center=False, window=n).mean()
     std_line = tdf['close'].rolling(center=False, window=n).std()
     ub = mid + std * std_line
