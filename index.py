@@ -154,10 +154,10 @@ def macd(sdf, fast=12, slow=26, avg=9):
         (DataFrame): MACD指标，包含['MACD_DIFF', 'MACD_DEA', 'MACD_BAR']
     """
     tdf=sdf.copy()
-    ema_fast = round(tdf['close'].ewm(span=fast, adjust=False).mean(), 2)
-    ema_slow = round(tdf['close'].ewm(span=slow, adjust=False).mean(), 2)
+    ema_fast = round(tdf['close'].ewm(span=fast, adjust=False).mean(), 3)
+    ema_slow = round(tdf['close'].ewm(span=slow, adjust=False).mean(), 3)
     diff = ema_fast - ema_slow
-    dea = round(diff.ewm(span=avg, adjust=False).mean(), 2)
+    dea = round(diff.ewm(span=avg, adjust=False).mean(), 3)
     bar = 2 * (diff - dea)
     dic = {'MACD_BAR': bar, 'MACD_DIFF': diff, 'MACD_DEA': dea}
     rdf = pd.DataFrame(dic)

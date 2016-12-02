@@ -91,6 +91,7 @@ def factor_bbi_cross(sdf, strict=True):
         sdf: (DataFrame): 股票数据，至少包括['close']
 
         strict: (boolean): True时，严格出现交叉才会发出信号；False时，若前一天日线回踩BBI线并重合，第二天再拉开，也认为出现交叉
+
     Output:
         (Series): BBI交叉信号
     """
@@ -112,6 +113,7 @@ def factor_rsi_cross(sdf, n=(6, 12), strict=True):
         n: (list of int): 参与计算的两条RSI的时间窗，如[6,12]，以第一条线上穿第二条线为金叉
 
         strict: (boolean): True时，RSI严格出现交叉才会发出信号；False时，若前一天第一条线回踩第二条线并重合，第二天再拉开，也认为出现交叉
+
     Output:
         (Series): RSI交叉信号
     """

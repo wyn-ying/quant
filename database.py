@@ -33,7 +33,7 @@ def get_stock_list(stock_pool='0'):
         stock_pool: (string): '0' or '3' or '6', stock pool to connect
 
     Return:
-        Array: list of stock codes, , like ['sh600001', 'sh600002', ...]
+        Array: list of stock codes, like ['sh600001', 'sh600002', ...]
     """
     conn = get_connection(stock_pool=stock_pool)
     tdf = pd.read_sql("select table_name from information_schema.tables \
@@ -54,7 +54,7 @@ def get_df(code, conn=None):
         conn: connection handle of the code, if None it will be slow to create handle locally based on parameter 'code'.
 
     Return:
-        Array: list of stock codes, , like ['sh600001', 'sh600002', ...]
+        DataFrame: data of the stock
     """
     if len(code) == 6:
         code = ('sh' if code[0]=='6' else 'sz') + code

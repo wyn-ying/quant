@@ -52,12 +52,13 @@ def wave(line, strict=True):
     return signal
 
 
-def cross(judge_line, base_line=None, strict=False):
+def cross(judge_line, base_line=None, strict=False, signal_type='both'):
     """
     判断judge_line是否穿过base_line，上穿当天1,下穿当天为-1,其他为0。
     两条线相交的点不算穿轴。
     strict=False，若judge_line下踩base_line再向上视为上穿，反之亦然。
     strict=True，若judge_line下踩base_line再向上不视为上穿，反之亦然。
+    signal_type可选'raise'或者'fall'，为单方向信号，选'both'为双方向信号。'fall'时返回值为1则表明下穿。
     """
     if base_line is not None:
         judge_line = judge_line - base_line
@@ -73,19 +74,28 @@ def cross(judge_line, base_line=None, strict=False):
                 signal[idx[i]] = 0
             else:
                 j = i
+    if signal_type == 'fall':
+        signal = signal.map(lambda x: 1 if x < 0 else 0)
+    elif signal_type == 'raise':
+        signal = signal.map(lambda x: 1 if x > 0 else 0)
     return signal
 
 
-def inflection(line, strict=False):
+def inflection(line, strict=False, signal_type='both'):
     """
     判断line拐头，向上拐头当天1,向下拐头当天为-1,其他为0。
     strict=False时，前一天走平，当天向上或向下也视为拐头。
     strict=True时，向上拐头和向下拐头严格交叉出现，连续上升或下降途中的走平不认为是拐头。
+    signal_type可选'raise'或者'fall'，为单方向信号，选'both'为双方向信号。'fall'时返回值为1则表明下穿。
     """
     judge_line = line.diff()
     if len(judge_line) > 2:
         judge_line[0] = judge_line[1]
-    signal = cross(judge_line, strict)
+    signal = cross(judge_line, strict=strict)
+    if signal_type == 'raise':
+        signal = signal.map(lambda x: 1 if x > 0 else 0)
+    elif signal_type == 'fall':
+        signal = signal.map(lambda x: 1 if x < 0 else 0)
     return signal
 
 
