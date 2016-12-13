@@ -13,7 +13,6 @@ import os
 
 def download_data_append_hfq(start_date, end_date=None, \
                             from_code=None, update_list=False):
-    record = open(PATH+'/log/log.txt', 'a')
     conn6 = get_connection(stock_pool='6')
     conn3 = get_connection(stock_pool='3')
     conn0 = get_connection(stock_pool='0')
@@ -26,11 +25,9 @@ def download_data_append_hfq(start_date, end_date=None, \
         # os.system('rm /home/wyn/stock/code_list_time.npy')
         np.save(PATH+'/data/code_list.npy', codelist.index)
         # np.save('/home/wyn/stock/code_list_time.npy', codelist['timeToMarket'].values)
-    log_dir = PATH+'/log/'+str(date.today())
-    try:
-        os.system('mkdir '+log_dir)
-    except Exception as err:
-        pass
+    log_dir = PATH+'/data/log/'+str(date.today())
+    record = open(log_dir + '.txt', 'a')
+
     stock_code_list = list(np.load(PATH+'/data/code_list.npy'))
 
     start_idx=0
@@ -46,7 +43,6 @@ def download_data_append_hfq(start_date, end_date=None, \
     for stock_code in stock_code_list[start_idx:]:
         stock_code_sql = ('sh' if stock_code[0] == '6' else 'sz') + stock_code
         print('\n'+str(cnt)+'start:'+stock_code_sql)
-        record.writelines(str(cnt)+' start:'+stock_code_sql+'-----')
         data = ts.get_h_data(stock_code, start=start_date, end=end_date,\
                             retry_count=5, pause=0.1, autype='hfq', drop_factor=False)
         data_t = ts.get_hist_data(stock_code, start=start_date, end=end_date,retry_count=5, pause=0.1)
@@ -54,15 +50,13 @@ def download_data_append_hfq(start_date, end_date=None, \
             print('No turnover data')
             turnover_list.append(stock_code)
         if data is None:
-            errorlog = open(log_dir+'/errorlog_'+stock_code_sql+'.txt', 'a')
-            errorlog.writelines('\nERROR:::data of'+stock_code_sql \
-                        +'in 07-16~07-22 may be missed. \n')
-            errorlog.close()
+            record.writelines('\nERROR:::data of '+stock_code_sql \
+                        +' may be missed. \n')
         else:
             if data_t is None:
                 data['turnover'] = np.NAN
             else:
-                data['turnover'] = data_t['turnover'] / 100
+                data['turnover'] = list(data_t['turnover'] / 100)
 
             data = data.reindex(index=data.index[::-1])
             if stock_code[0] == '6':
@@ -72,16 +66,18 @@ def download_data_append_hfq(start_date, end_date=None, \
             else:
                 data.to_sql(name=stock_code_sql, con=conn0, if_exists='append')
 
-        record.writelines(str(cnt)+':'+stock_code_sql+'has finished. \n')
         print(str(cnt)+':'+stock_code_sql+'has finished. \n')
         cnt += 1
-    record.close()
+
     if len(turnover_list) > 0:
         print('缺少换手率数据的有：')
+        record.writelines('\n缺少换手率数据的有：\n')
         for code in turnover_list:
             print(code)
+            record.writelines(code + ',')
         print('共', len(turnover_list), '只')
 
+    record.close()
 
 
 def fix_data(code, start_date, end_date):
@@ -97,6 +93,6 @@ def fix_data(code, start_date, end_date):
 
 
 if __name__ == '__main__':
-    download_data_append_hfq(start_date='2016-10-13', end_date='2016-11-14',\
+    download_data_append_hfq(start_date='2016-12-10', end_date='2016-12-12',\
                             from_code=None, update_list=True)
     # fix_data(code='sz000028', start_date='2016-10-28', end_date='2016-11-14')
