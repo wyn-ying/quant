@@ -9,13 +9,34 @@ from time import sleep
 from datetime import date
 import numpy as np
 import os
+import sys
 
 
-def download_data_append_hfq(start_date, end_date=None, \
-                            from_code=None, update_list=False):
-    conn6 = get_connection(stock_pool='6')
-    conn3 = get_connection(stock_pool='3')
-    conn0 = get_connection(stock_pool='0')
+class ProgressBar:
+    def __init__(self, count=0, total=0, width=50):
+        self.count = count
+        self.total = total
+        self.width = width
+
+    def move(self):
+        self.count += 1
+
+    def log(self, s=None):
+        sys.stdout.write(' ' * (self.width + 9) + '\r')
+        sys.stdout.flush()
+        progress = round(self.width * self.count / self.total)
+        sys.stdout.write('{0:4} {1:4}/{2:4}: '.format(s, self.count, self.total))
+        sys.stdout.write('#' * progress + '-' * (self.width - progress) + '\r')
+        if progress == self.width:
+            sys.stdout.write('\n')
+        sys.stdout.flush()
+
+
+def download_data_append_hfq(start_date, end_date=None, from_code=None, \
+                        update_list=False, to_series='stock'):
+    conn6 = get_connection(series=to_series, stock_pool='6')
+    conn3 = get_connection(series=to_series, stock_pool='3')
+    conn0 = get_connection(series=to_series, stock_pool='0')
     if update_list:
         codelist = ts.get_stock_basics()
         try:
@@ -40,21 +61,24 @@ def download_data_append_hfq(start_date, end_date=None, \
     #start_idx += 1
     turnover_list = []
     cnt = start_idx
+    bar = ProgressBar(count=start_idx, total=len(stock_code_list[start_idx:]))
+
     for stock_code in stock_code_list[start_idx:]:
         stock_code_sql = ('sh' if stock_code[0] == '6' else 'sz') + stock_code
-        print('\n'+str(cnt)+'start:'+stock_code_sql)
+        bar.log(stock_code_sql)
+
         data = ts.get_h_data(stock_code, start=start_date, end=end_date,\
                             retry_count=5, pause=0.1, autype='hfq', drop_factor=False)
         data_t = ts.get_hist_data(stock_code, start=start_date, end=end_date,retry_count=5, pause=0.1)
-        if data_t is None:
-            print('No turnover data')
-            turnover_list.append(stock_code)
-        if data is None:
+
+        if data is None or len(data) == 0:
             record.writelines('\nERROR:::data of '+stock_code_sql \
                         +' may be missed. \n')
         else:
-            if data_t is None:
+            if data_t is None or len(data_t) == 0:
                 data['turnover'] = np.NAN
+                print('No turnover data')
+                turnover_list.append(stock_code)
             else:
                 data['turnover'] = list(data_t['turnover'] / 100)
 
@@ -66,7 +90,7 @@ def download_data_append_hfq(start_date, end_date=None, \
             else:
                 data.to_sql(name=stock_code_sql, con=conn0, if_exists='append')
 
-        print(str(cnt)+':'+stock_code_sql+'has finished. \n')
+        bar.move()
         cnt += 1
 
     if len(turnover_list) > 0:
