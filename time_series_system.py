@@ -60,9 +60,11 @@ def combine_backward(df, order, period=30, strict=[]):
             rdf[odr[i]] = tmp_sr.map(lambda x: x[1])
             range_sr = tmp_sr
     #去掉rdf中包含np.NAN的记录（行）
-    rdf = rdf.drop(np.where(np.isnan(rdf))[0])
-    rdf = rdf[order].reset_index(drop=True)
-
+    if rdf is not None and len(rdf)>0:
+        rdf = rdf.drop(np.where(np.isnan(rdf))[0])
+        rdf = rdf[order].reset_index(drop=True)
+    else:
+        rdf = None
     return rdf
 
 
@@ -116,8 +118,11 @@ def combine_forward(df, order, period=None, strict=[]):
     if period is not None:
         rdf = rdf.apply(lambda x:_constrant(x,order[0],order[-1],period),axis=1)
     #去掉rdf中包含np.NAN的记录（行）
-    rdf = rdf.drop(np.where(np.isnan(rdf))[0])
-    rdf = rdf.reset_index(drop=True)
+    if rdf is not None and len(rdf)>0:
+        rdf = rdf.drop(np.where(np.isnan(rdf))[0])
+        rdf = rdf[order].reset_index(drop=True)
+    else:
+        rdf = None
     return rdf[order]
 
 
@@ -158,7 +163,7 @@ def convert_record_to_date(rdf, date):
     Output:
         (DataFrame): 返回记录集合，其中每条记录是对应信号组合的日期
     """
-    df = rdf.applymap(lambda x: pd.Timestamp(date[x]))
+    df = rdf.applymap(lambda x: pd.Timestamp(date[x])) if (rdf is not None and len(rdf) > 0) else None
     return df
 
 
