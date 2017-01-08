@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
+import os
 from sqlalchemy import create_engine
 import pandas as pd
 from qntstock.utils import PATH, DB_PATH, _sort
@@ -157,11 +157,11 @@ def backup_csv(from_series='stock', to_path=PATH+'/data/backup'):
         df.to_csv(path_or_buf=to_path + '/' + code + '.csv', index=False)
 
 
-def recover(from_path=PATH+'/data/backup', to_series='stock'):
+def restore(from_path=PATH+'/data/backup', to_series='stock'):
     """
-    recover(from_path=PATH+'/data/backup', to_series='stock'):
+    restore(from_path=PATH+'/data/backup', to_series='stock'):
 
-    Recover data from csv
+    Restore data from csv
 
     Input:
         from_from: (string): path of csv backup file
@@ -192,7 +192,7 @@ def _getlist(dir, filelist):
     elif os.path.isdir(dir):
         for s in os.listdir(dir):
             newdir=os.path.join(dir,s)
-            getlist(newdir, filelist)
+            _getlist(newdir, filelist)
     return filelist
 
 
@@ -202,4 +202,5 @@ if __name__ == '__main__':
     #
     #code_list = ['300019', '600634', '300548', '300287', '300551', '603887']
     #remove_duplication(code_list)
-    backup_csv()
+    #backup_csv()
+    restore()
