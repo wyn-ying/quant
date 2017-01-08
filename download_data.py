@@ -4,32 +4,12 @@
 import tushare as ts
 import pandas as pd
 from qntstock.database import get_connection
-from qntstock.utils import PATH
+from qntstock.utils import PATH, ProgressBar
 from time import sleep
 from datetime import date
 import numpy as np
 import os
 import sys
-
-
-class ProgressBar:
-    def __init__(self, count=0, total=0, width=50):
-        self.count = count
-        self.total = total
-        self.width = width
-
-    def move(self):
-        self.count += 1
-
-    def log(self, s=None):
-        sys.stdout.write(' ' * (self.width + 9) + '\r')
-        sys.stdout.flush()
-        progress = round(self.width * self.count / self.total)
-        sys.stdout.write('{0:4} {1:4}/{2:4}: '.format(s, self.count, self.total))
-        sys.stdout.write('#' * progress + '-' * (self.width - progress) + '\r')
-        if progress == self.width:
-            sys.stdout.write('\n')
-        sys.stdout.flush()
 
 
 def download_data_append_hfq(start_date, end_date=None, from_code=None, \
@@ -117,6 +97,6 @@ def fix_data(code, start_date, end_date):
 
 
 if __name__ == '__main__':
-    download_data_append_hfq(start_date='2016-12-10', end_date='2016-12-12',\
+    download_data_append_hfq(start_date='2016-12-21', end_date='2016-12-22',\
                             from_code=None, update_list=True)
     # fix_data(code='sz000028', start_date='2016-10-28', end_date='2016-11-14')

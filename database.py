@@ -3,7 +3,7 @@
 import os
 from sqlalchemy import create_engine
 import pandas as pd
-from qntstock.utils import PATH, DB_PATH, _sort
+from qntstock.utils import PATH, DB_PATH, _sort, ProgressBar
 
 
 
@@ -151,10 +151,13 @@ def backup_csv(from_series='stock', to_path=PATH+'/data/backup'):
     conf0 = get_connection(series=from_series, stock_pool='0')
     conf={'0':conf0, '3':conf3, '6':conf6}
 
+    bar = ProgressBar(total=len(l))
     for code in l:
+        bar.log(code)
         sql = 'select distinct * from '+code + ';';
         df = pd.read_sql(sql, conf[code[2]])
         df.to_csv(path_or_buf=to_path + '/' + code + '.csv', index=False)
+        bar.move()
 
 
 def restore(from_path=PATH+'/data/backup', to_series='stock'):
@@ -177,12 +180,15 @@ def restore(from_path=PATH+'/data/backup', to_series='stock'):
     cont0 = get_connection(series=to_series, stock_pool='0')
     cont={'0':cont0, '3':cont3, '6':cont6}
 
+    bar = ProgressBar(total=len(l))
     for i in l:
+        bar.log(code)
         tmp=i.split('/')[-1]
         code = tmp.split('.')[0]
-        print(code)
         df = pd.read_csv(i)
+        df['date'] = df['date'].apply(lambda date: pd.Timestamp(date))
         df.to_sql(name=code, con=cont[code[2]], if_exists='replace', index=False)
+        bar.move()
 
 
 def _getlist(dir, filelist):
@@ -202,5 +208,5 @@ if __name__ == '__main__':
     #
     #code_list = ['300019', '600634', '300548', '300287', '300551', '603887']
     #remove_duplication(code_list)
-    #backup_csv()
+    backup_csv()
     restore()
