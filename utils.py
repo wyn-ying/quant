@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 from qntstock.local import DB_PATH, PATH
+import sys
 
 class ProgressBar:
     def __init__(self, count=0, total=0, width=50):

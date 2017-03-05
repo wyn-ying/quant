@@ -5,8 +5,8 @@ from pandas import Timestamp
 import pandas as pd
 import numpy as np
 from qntstock.time_series_system import *
-from database import get_stock_list, get_connection
-from utils import _sort, PATH, ProgressBar
+from qntstock.database import get_stock_list, get_connection
+from qntstock.utils import _sort, PATH, ProgressBar
 
 class TradeSystem:
     def __init__(self, buy=None, sell=None, df=None, gain=None, loss=None, maxreduce=None, gainbias=0.007):
@@ -203,6 +203,7 @@ def sell(self):
 
 
 if __name__ == '__main__':
+    df = pd.DataFrame()
     t = TradeSystem(buy=buy, sell=sell, df=df, gain=0.05, loss=0.05)
     t.backtest(start='20160101')
     print(t.avggainrate, t.successrate, t.keepdays)

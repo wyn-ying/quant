@@ -4,13 +4,18 @@
 import numpy as np
 
 
-def sign(line, strict=True):
+def sign(line, strict=True, stype='all'):
     """
     判断line符号。line每个元素为正数则为1，为负数则为-1
     strict=True时，0点为0
     strict=False时，0点的状态与前天状态保持一致
     """
-    signal = line.map(lambda x: 1 if x > 0 else -1 if x < 0 else 0)
+    if stype == 'pos':
+        signal = line.map(lambda x: 1 if x > 0 else 0)
+    elif stype == 'nag':
+        signal = line.map(lambda x: 1 if x < 0 else 0)
+    else:
+        signal = line.map(lambda x: 1 if x > 0 else -1 if x < 0 else 0)
     if strict is False:
         idx = sorted(np.where(signal == 0)[0])
         for i in range(1,len(idx)):
@@ -41,14 +46,28 @@ def lower_than(line1, line2, strict=True):
     return signal
 
 
-def wave(line, strict=True):
+def wave(line, strict=True, stype='all'):
     """
     判断line走势。line向上行则为1，下行则为-1
     strict=True时，走平为0
     strict=False时，走平当天的状态与前天状态保持一致
     """
     w = line.diff()
-    signal = sign(w, strict)
+    signal = sign(w, strict, stype)
+    return signal
+
+
+def keep(line, n, strict=False):
+    """
+    判断line信号持续长度.持续长度超过n则信号为1.持续长度不足n则为0
+    strict=True时,持续长度为n时信号为0
+    strict=False时,持续长度为n时信号为1
+    """
+    signal = line.copy()
+    idx = signal.index
+    n = n + 1 if strict else n
+    for i in range(0, len(idx)):
+        signal[idx[i]] = 1 if sum(line.head(i+1).tail(n)) == n else 0
     return signal
 
 
