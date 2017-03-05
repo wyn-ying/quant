@@ -107,13 +107,13 @@ def plot(df, path, useexpo=False, dpi=600, part=['p', 'v'], price_part=0.7, xsiz
         rarray_high= numpy.array(df['high'])
         rarray_low= numpy.array(df['low'])
         if True in up:
-            axes_1.vlines(xindex[up], rarray_low[up], rarray_high[up], color=raise_color, linewidth=0.6 * xshrink, label='_nolegend_')
+            axes_1.vlines(xindex[up], rarray_low[up], rarray_high[up], color=raise_color, linewidth=1.5 * xshrink, label='_nolegend_')
             axes_1.vlines(xindex[up], rarray_open[up], rarray_close[up], color=raise_color, linewidth=3.0 * xshrink, label='_nolegend_')
         if True in down:
-            axes_1.vlines(xindex[down], rarray_low[down], rarray_high[down], color=fall_color, linewidth=0.6 * xshrink, label='_nolegend_')
+            axes_1.vlines(xindex[down], rarray_low[down], rarray_high[down], color=fall_color, linewidth=1.5 * xshrink, label='_nolegend_')
             axes_1.vlines(xindex[down], rarray_open[down], rarray_close[down], color=fall_color, linewidth=3.0 * xshrink, label='_nolegend_')
         if True in side:
-            axes_1.vlines(xindex[side], rarray_low[side], rarray_high[side], color=keep_color, linewidth=0.6 * xshrink, label='_nolegend_')
+            axes_1.vlines(xindex[side], rarray_low[side], rarray_high[side], color=keep_color, linewidth=1.5 * xshrink, label='_nolegend_')
             axes_1.vlines(xindex[side], rarray_open[side], rarray_close[side], color=keep_color, linewidth=3.0 * xshrink, label='_nolegend_')
 
         #   在k线上面叠加绘制均线
@@ -136,7 +136,7 @@ def plot(df, path, useexpo=False, dpi=600, part=['p', 'v'], price_part=0.7, xsiz
 
     date = str(df.tail(1)['date'].values[0])
     date = date[0:4] + date[5:7] + date[8:10]
-    filetype = '_' + ('pv' if set(part)==set(['p','v']) else part[0]) + '.png'
+    filetype = '_' + ('pv' if set(part)==set(['p','v']) else part[0]) + '.jpg'
     figpath = path + '_' + date + '_' + str(length) + filetype
     figobj.savefig(figpath, dpi=dpi)
 
@@ -147,4 +147,4 @@ if __name__ == '__main__':
     df = ts.get_k_data(code)
     path = PATH + '/data/ml/' + code
     df = df.tail(60)
-    plot(df,path=path, part=['p', 'v'])
+    plot(df, dpi=150, xsize=1.28, ysize=1.28, path=path, part=['p', 'v'])
