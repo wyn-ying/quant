@@ -23,20 +23,20 @@ def translate_ticks(df, xsize, ysize):
     num[:,3]=num[:,3]-maskyg
     # reverse along y axis
     num = ysize - num[:,:]
-    img = np.zeros((ysize, xsize,3))
+    img = np.zeros((ysize, xsize,3), dtype=np.int8)
     for i in range(xsize):
         if maskyr[maskx[i]]:
             # maskx[] map from i-th y-axis in num to maskx[i]-th x-axis in img
             # num[maskx[i],1] map from (coordinate of high price in num) to (pixel position in img)
-            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,0]=0.5
-            img[int(num[maskx[i],3]):int(num[maskx[i],0]),i,0]=1
-            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,2]=0.5
-            img[int(num[maskx[i],3]):int(num[maskx[i],0]),i,2]=1
+            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,0]=1
+            img[int(num[maskx[i],3]):int(num[maskx[i],0]),i,0]=2
+            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,2]=1
+            img[int(num[maskx[i],3]):int(num[maskx[i],0]),i,2]=2
         if maskyg[maskx[i]]:
-            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,1]=0.5
-            img[int(num[maskx[i],0]):int(num[maskx[i],3]),i,1]=1
-            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,2]=0.5
-            img[int(num[maskx[i],0]):int(num[maskx[i],3]),i,2]=1
+            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,1]=1
+            img[int(num[maskx[i],0]):int(num[maskx[i],3]),i,1]=2
+            img[int(num[maskx[i],1]):int(num[maskx[i],2]),i,2]=1
+            img[int(num[maskx[i],0]):int(num[maskx[i],3]),i,2]=2
     return img
 
 def translate_volumes(df, xsize, ysize):
@@ -54,7 +54,7 @@ def translate_volumes(df, xsize, ysize):
     num = num*ysize//maxim
     # reverse along y axis
     num = ysize - num[:]
-    img = np.zeros((ysize, xsize,3))
+    img = np.zeros((ysize, xsize,3), dtype=np.int8)
     for i in range(xsize):
         if maskyr[maskx[i]]:
             # maskx[] map from i-th y-axis in num to maskx[i]-th x-axis in img
