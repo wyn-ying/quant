@@ -4,7 +4,22 @@
 import numpy as np
 from qntstock.utils import PATH
 from qntstock.database import get_df
+
 def translate_ticks(df, xsize, ysize):
+    '''
+    translate_ticks(df, xsize, ysize):
+
+    绘制训练用的k线图,供调用,分为三个层,阳线层阴线层和全部层.K线实体部分为2,影线部分为1,注意是np.int8类型.
+
+    TODO: 使用对数坐标useexpo
+
+    Input:
+        df: (DataFrame): 股票数据
+
+        xsize: (int): 图片宽度
+
+        ysize: (int): 图片高度
+    '''
     num=df[['open','high','low','close']].values
     minim = np.amin(num)
     maxim = np.amax(num)
@@ -40,6 +55,18 @@ def translate_ticks(df, xsize, ysize):
     return img
 
 def translate_volumes(df, xsize, ysize):
+    '''
+    translate_ticks(df, xsize, ysize):
+
+    绘制训练用的交易量图,供调用,分为三个层,阳线层阴线层和全部层.有值部分为1,注意是np.int8类型.
+
+    Input:
+        df: (DataFrame): 股票数据
+
+        xsize: (int): 图片宽度
+
+        ysize: (int): 图片高度
+    '''
     num=df[['open','close','volume']].values
     # mark which row should be red (long)
     maskyr=np.ceil(num[:,1]-num[:,0]>=0)
