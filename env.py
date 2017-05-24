@@ -1,17 +1,23 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 from qntstock.database import get_stock_list, get_df
-import numpy as np
 import logging
 from random import choice
-from math import floor
+import policys
 
 class Enveriment(object):
-    def __init__(self, features=None, start=None, end=None, steps=None, data_df=None, tax=0.7):
+    def __init__(self, policy=None, features=None, start=None, end=None, steps=None, data_df=None, tax=0.7):
         # short is 0, long is 1
         self.action_space = [0, 1]
         self.n_actions = 2
         self.n_features = None
+        if policy is not None:
+            if hasattr(policys, policy):
+                policy = getattr(policys, policy)
+            else:
+                logging.warning('Can not find policy by name: '+policy+'.\nUse default BasePolicy')
+                policy = None
+        self.p = policys.BasePolicy() if policy is None else policy()
         self.features = None
         self._set_features(features)
         self.df = data_df
@@ -39,27 +45,16 @@ class Enveriment(object):
             lstart = start if start is not None else self.start
             lend = end if end is not None else self.end
             lsteps = steps if steps is not None else self.steps
-            self.df = self._get(code, lstart, lend, lsteps)
+            self.df = self._get_df(code, lstart, lend, lsteps)
         self.timecnt = 0
         self.steps = len(self.df)
         self.stat = 0
         self.next_action = None
 
     def _set_features(self, features):
-        # NOTE: set features based on given features
-        # should be easy to extend features in the future
-        if features == None:
-            features = ['open', 'high', 'low', 'close']
+        self.p.set_features(self, features)
 
-        if 'close' not in features:
-            features.append('close')
-        own_features = list(get_df('002028').columns)
-        self.features = [i for i in features if i in own_features]
-        missing_list = [i for i in features if i not in own_features]
-        if len(missing_list) >0:
-            logging.warning('The following features are missing:'+str(missing_list))
-
-    def _get(self, code, start, end, steps):
+    def _get_df(self, code, start, end, steps):
         df = get_df(code, start=start, end=end)
         return df.tail(steps) if steps is not None else df
 
@@ -67,38 +62,10 @@ class Enveriment(object):
         self.stat = action
 
     def _get_observation(self):
-        if self.timecnt == self.steps-1:
-            observation = []
-        else:
-            # NOTE: observation may include many features, the first must be the status of last action
-            last_price = self.df.ix[self.timecnt,'close']
-            lfeatures = self.df.ix[self.timecnt+1,self.features] / last_price - 1
-            lfeatures = lfeatures.apply(lambda x: floor(x * 10000) / 100).values
-            observation = np.concatenate([[self.stat], lfeatures])
-        return observation
+        return self.p.get_observation(self)
 
     def _get_reward(self):
-        # NOTE: consider how to compute reward is write
-        if self.timecnt == self.steps-1:
-            reward = 0
-        else:
-            # all trades are at the end of a day in the current version
-            if self.stat == 0 and self.next_action == 1:      # buy
-                reward = -self.tax
-
-            elif self.stat == 0 and self.next_action == 0:    # wait
-                reward = 0
-
-            elif self.stat == 1 and self.next_action == 1:    # hold
-                wave = self.df.ix[self.timecnt,'close'] / self.df.ix[self.timecnt-1,'close'] - 1
-                wave = floor(wave * 10000) / 100
-                reward = wave
-
-            elif self.stat == 1 and self.next_action == 0:    # sell
-                wave = self.df.ix[self.timecnt,'close'] / self.df.ix[self.timecnt-1,'close'] - 1
-                wave = floor(wave * 10000) / 100
-                reward = wave - self.tax
-        return reward
+        return self.p.get_reward(self)
 
     def _get_if_done(self):
         return True if (self.timecnt==self.steps-1) else False
@@ -133,22 +100,17 @@ class Enveriment(object):
         return (observation, reward, done)
 
 
-def policy(observation):
-    return 1 if observation[-1]>0 else 0
-
-
 if __name__ == '__main__':
-    e = Enveriment(features=['open','high','low','close'])
-
-
+    e = Enveriment(policy='FollowPolicy', features=['open','high','low','close'])
     e.reset(start='20170101')
+    print('Some infermation after reset:', e.code)
     done = False
     print(e.features)
     action = 0
     while not done:
         observation, reward, done = e.step(action)
         if not done:
-            action = policy(observation)
+            action = e.p.policy(observation)
         print(reward, e.money, e.date, e.stat)
         print(observation, '\n')
     print(e.code, e.money)
