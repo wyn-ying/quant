@@ -45,16 +45,18 @@ def get_stock_list(series='stock', stock_pool='0'):
     return test_list
 
 
-def get_df(code, series='stock', conn=None):
+def get_df(code, series='stock', conn=None, start=None, end=None):
     """
-    get_df(code, conn=None):
+    get_df(code, series='stock', conn=None, start=None, end=None):
 
     Get the sorted dataframe of stock
 
     Input:
         code: (string): stock code with or without pool code, like 'sh603588', '300121'
+        series: (string): stock pool name of code
         conn: connection handle of the code, if None it will be slow to create handle locally based on parameter 'code'.
-
+        start: (string): the start date that wana get, like '20160101'
+        end: (string): the end date that wana get, like '20161231'
     Return:
         DataFrame: data of the stock
     """
@@ -63,8 +65,15 @@ def get_df(code, series='stock', conn=None):
     else:
         code_name = code
     if conn is None:
-        conn = get_connection(series=series, stock_pool=code[2])
-    sql = "select distinct * from " + code_name + ";"
+        conn = get_connection(series=series, stock_pool=code_name[2])
+    sql = "select distinct * from " + code_name
+    if (start is not None) and (end is not None):
+        sql += " where date>="+start+" and date<="+end
+    elif start is not None:
+        sql += " where date>="+start
+    elif end is not None:
+        sql += " where date<="+end
+    sql += ";"
     df = pd.read_sql(sql, conn)
     df = _sort(df)
     return df
@@ -281,6 +290,10 @@ if __name__ == '__main__':
     #
     #code_list = ['300019', '600634', '300548', '300287', '300551', '603887']
     #remove_duplication(code_list)
-    backup_csv_paral()
     #backup_csv(to_path='/home/wyn/data/test')
+    '''
+    backup_csv_paral()
     restore_paral()
+    '''
+    df = get_df('002028')
+    print(df)
