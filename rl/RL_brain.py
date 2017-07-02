@@ -117,7 +117,7 @@ class DoubleDQN:
     def learn(self):
         if self.learn_step_counter % self.replace_target_iter == 0:
             self._replace_target_params()
-            print('\ntarget_params_replaced\n')
+            # print('\ntarget_params_replaced\n')
 
         if self.memory_counter > self.memory_size:
             sample_index = np.random.choice(self.memory_size, size=self.batch_size)
