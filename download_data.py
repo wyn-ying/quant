@@ -60,7 +60,8 @@ def download_data_append_hfq(start_date, end_date=None, from_code=None, \
                 print('No turnover data')
                 turnover_list.append(stock_code)
             else:
-                data['turnover'] = list(data_t['turnover'] / 100)
+                if 'turnover' in data_t.columns:
+                    data['turnover'] = list(data_t['turnover'] / 100)
 
             data = data.reindex(index=data.index[::-1])
             if stock_code[0] == '6':

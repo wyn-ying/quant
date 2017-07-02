@@ -97,6 +97,13 @@ def translate_volumes(df, xsize, ysize):
             #img[int(num[maskx[i],0]):int(num[maskx[i],3]),i,2]=1
     return img
 
+
+def translate_img(df, xsize, ysize):
+    img = np.zeros((ysize, xsize, 3), dtype=np.int8)
+    img[:,:,:2] = translate_ticks(df, xsize, ysize)[:,:,:2]
+    img[:,:,2] = 2*translate_volumes(df, xsize, ysize)[:,:,2]
+    return img
+
 if __name__ == '__main__':
     df=get_df('sh600230')
     df=df.tail(10)

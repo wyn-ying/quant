@@ -3,7 +3,7 @@
 from qntstock.database import get_stock_list, get_df
 import logging
 from random import choice
-import policys
+from qntstock import policys
 from math import floor
 
 class Enveriment(object):
@@ -46,14 +46,14 @@ class Enveriment(object):
             self.lstart = start if start is not None else self.start
             self.lend = end if end is not None else self.end
             self.lsteps = steps
-            self.df = self._get_df(code, self.lstart, self.lend, self.lsteps)
-            while self.df.shape[0] < self.width + self.lsteps:
+            self.df = self._get_df(lcode, self.lstart, self.lend, self.lsteps)
+            while self.df.shape[0] < self.width + (0 if steps is None else steps):
                 assert code is None, 'code %s has not enough length during %s to %s'%(
                         code,
                         self.lstart if self.lstart is not None else 'the begining',
                         self.lend if self.lend is not None else 'the end')
-                lcode = choise(self.codelist)
-                self.df = self._get_df(code, self.lstart, self.lend, self.lsteps)
+                lcode = choice(self.codelist)
+                self.df = self._get_df(lcode, self.lstart, self.lend, self.lsteps)
         # TODO: TODO: TODO:
         # 通过time_series_system的函数，结合features，一次性生成需要的特征，注意必须保留'close'，建议保留当日相比昨日的4个涨幅
         # 这个功能放到policy里，在这里调用self.df=p.xxxx(self.df, self.features)
@@ -138,7 +138,8 @@ class Enveriment(object):
 if __name__ == '__main__':
     e = Enveriment(policy='FollowPolicy', features=['open','high','low','close'])
     #e = Enveriment(policy='RLPolicy', features=['open','high','low','close','volume'])
-    observation = e.reset(code='600212',start='20170101', steps=3) # 600212-->15+3
+    # observation = e.reset(code='600212',start='20170101', steps=3) # 600212-->15+3
+    observation = e.reset(start='20170101') # 600212-->15+3
     print(observation, '\n')
     print('Some infermation after reset:', e.code)
     done = False
@@ -156,4 +157,4 @@ if __name__ == '__main__':
             print('cnt: ', cnt)
             print(e.code, e.money)
             print(e.last_buy_price, e.df.tail(1)['close'])
-            observation = e.reset(code='600212',start='20170101',steps=3)
+            observation = e.reset(code='600212',start='20170101',steps=2)

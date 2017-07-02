@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from qntstock.database import get_df
-from math import floor
 import numpy as np
-
+from qntstock.createimg import *
+from math import floor
 class BasePolicy(object):
     def __init__(self):
         self.name='BasePolicy'
@@ -28,16 +28,14 @@ class BasePolicy(object):
             logging.warning('The following features are missing:'+str(missing_list))
 
     def get_observation(self, env):
-        if env.timecnt == env.steps-1:
-            observation = []
-        else:
-            # NOTE: observation may include many features, the first must be the status of last action
-            last_price = env.df.ix[env.timecnt,'close']
-            lfeatures = env.df.ix[env.timecnt+1,env.features] / last_price - 1
-            lfeatures = lfeatures.apply(lambda x: floor(x * 10000) / 100).values
-            observation = np.concatenate([[env.stat], lfeatures])
+        # NOTE: observation may include many features, the first must be the status of last action
+        # compute relative value of every feature
+        last_price = env.df.ix[env.timecnt-1,'close']
+        lfeatures = env.df.ix[env.timecnt,env.features] / last_price - 1
+        lfeatures = lfeatures.apply(lambda x: floor(x * 10000) / 100).values
+        observation = np.concatenate([[env.stat], lfeatures])
         return observation
-
+    '''
     def get_reward(self, env):
         # NOTE: consider how to compute reward is write
         if env.timecnt == env.steps-1:
@@ -60,7 +58,7 @@ class BasePolicy(object):
                 wave = floor(wave * 10000) / 100
                 reward = wave - env.tax
         return reward
-
+    '''
 class FollowPolicy(BasePolicy):
     def __init__(self):
         super().__init__()
@@ -69,3 +67,25 @@ class FollowPolicy(BasePolicy):
     def policy(self, observation):
         next_action = 1 if observation[-1]>0 else 0
         return next_action
+
+class RLPolicy(BasePolicy):
+    def __init__(self):
+        super().__init__()
+        self.name='RLPolicy'
+
+    def set_features(self, env, features):
+        # TODO: set features as what shape should use for RL
+        #        maybe need data of dapan
+        features = ['open', 'high', 'close', 'low', 'volume']
+        super(RLPolicy, self).set_features(env, features)
+
+    def policy(self, observation):
+        # TODO: output next_action based on observation
+        return 1
+
+    def get_observation(self, env):
+        df = env.df.ix[env.timecnt-env.width:env.timecnt,:]
+        observation = translate_img(df, env.width, env.width)
+        # TODO: output observation(2darray or it's like)
+        return observation
+
