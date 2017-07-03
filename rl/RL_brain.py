@@ -93,7 +93,7 @@ class DoubleDQN:
         self.memory[index, :] = transition
         self.memory_counter += 1
 
-    def choose_action(self, observation):
+    def choose_action(self, observation, withrand=True):
         observation = observation.reshape(-1) # TODO:notify shape
         observation = observation[np.newaxis, :]
         actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
@@ -105,7 +105,7 @@ class DoubleDQN:
         self.running_q = self.running_q*0.99 + 0.01 * np.max(actions_value)
         self.q.append(self.running_q)
 
-        if np.random.uniform() > self.epsilon:  # choosing action
+        if withrand and (np.random.uniform() > self.epsilon):  # choosing action
             action = np.random.randint(0, self.n_actions)
         return action
 

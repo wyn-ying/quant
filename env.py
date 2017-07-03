@@ -39,7 +39,7 @@ class Enveriment(object):
         for i in ['0','3','6']:
             self.codelist.extend(get_stock_list(stock_pool=i))
 
-    def reset(self, code=None, start=None, end=None, steps=None):
+    def reset(self, code=None, start=None, end=None, steps=None, must_this=True):
         lcode = choice(self.codelist) if code is None else code
         if not self.df_has_set:
             self.code = lcode
@@ -47,12 +47,16 @@ class Enveriment(object):
             self.lend = end if end is not None else self.end
             self.lsteps = steps
             self.df = self._get_df(lcode, self.lstart, self.lend, self.lsteps)
-            while self.df.shape[0] < self.width + (0 if steps is None else steps):
-                assert code is None, 'code %s has not enough length during %s to %s'%(
+            while self.df.shape[0] < self.width + (0 if steps is None else steps) + 1:
+                assert (code is None) or (not must_this), 'code %s has not enough length during %s to %s'%(
                         code,
                         self.lstart if self.lstart is not None else 'the begining',
                         self.lend if self.lend is not None else 'the end')
+                if code is not None:
+                    print('code %s has not enough length during %s to %s. as not set [must_this], changing for another code'%(code, self.lstart if self.lstart is not None else 'the begining', self.lend if self.lend is not None else 'the end'))
+
                 lcode = choice(self.codelist)
+                self.code = lcode
                 self.df = self._get_df(lcode, self.lstart, self.lend, self.lsteps)
         # TODO: TODO: TODO:
         # 通过time_series_system的函数，结合features，一次性生成需要的特征，注意必须保留'close'，建议保留当日相比昨日的4个涨幅
