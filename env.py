@@ -47,7 +47,7 @@ class Enveriment(object):
             self.lend = end if end is not None else self.end
             self.lsteps = steps
             self.df = self._get_df(lcode, self.lstart, self.lend, self.lsteps)
-            while self.df.shape[0] < self.width + (0 if steps is None else steps) + 1:
+            while self.df.shape[0] < self.width + (1 if steps is None else steps):
                 assert (code is None) or (not must_this), 'code %s has not enough length during %s to %s'%(
                         code,
                         self.lstart if self.lstart is not None else 'the begining',

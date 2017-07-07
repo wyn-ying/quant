@@ -83,19 +83,27 @@ class DoubleDQN:
 
             self.q_next = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer)
 
+    def reshape(self, observation):
+        return observation.reshape(-1)
+
+    def restore(self, observation):
+        if len(observation.shape) == 1:
+            observation = observation[np.newaxis, :]
+        return observation
+
     def store_transition(self, s, a, r, s_):
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
-        stored_s = s.reshape(-1) # TODO:notify shape
-        stored_s_ = s_.reshape(-1) # TODO:notify shape
+        stored_s = self.reshape(s) # TODO:notify shape
+        stored_s_ = self.reshape(s_) # TODO:notify shape
         transition = np.hstack((stored_s, [a, r], stored_s_))
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition
         self.memory_counter += 1
 
     def choose_action(self, observation, withrand=True):
-        observation = observation.reshape(-1) # TODO:notify shape
-        observation = observation[np.newaxis, :]
+        observation = self.reshape(observation) # TODO:notify shape
+        observation = self.restore(observation)
         actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
         action = np.argmax(actions_value)
 
@@ -124,7 +132,7 @@ class DoubleDQN:
         else:
             sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
         batch_memory = self.memory[sample_index, :]
-
+        # batch_memory = self.restore(batch_memory)
         q_next, q_eval4next = self.sess.run(
             [self.q_next, self.q_eval],
             feed_dict={self.s_: batch_memory[:, -self.n_features:],    # next observation
