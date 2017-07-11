@@ -85,7 +85,7 @@ class RLPolicy(BasePolicy):
 
     def get_observation(self, env):
         df = env.df.ix[env.timecnt-env.width:env.timecnt,:]
-        observation = translate_img(df, env.width, env.width)
+        observation = translate_img(df, env.width, env.image_hight)
         # TODO: output observation(2darray or it's like)
         return observation
 

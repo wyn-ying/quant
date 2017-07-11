@@ -7,8 +7,9 @@ from qntstock import policys
 from math import floor
 
 class Enveriment(object):
-    def __init__(self, policy=None, window_width=15, features=None, start=None, end=None, data_df=None, tax=0.7):
+    def __init__(self, policy=None, window_width=15, image_hight=None, features=None, start=None, end=None, data_df=None, tax=0.7):
         self.width = window_width
+        self.image_hight = image_hight if image_hight is not None else window_width
         # short is 0, long is 1
         self.action_space = [0, 1]
         self.n_actions = 2
@@ -63,6 +64,7 @@ class Enveriment(object):
         # 这个功能放到policy里，在这里调用self.df=p.xxxx(self.df, self.features)
         self.timecnt = self.width - 1
         self.steps = len(self.df)
+        self.date = self.df.ix[self.timecnt,'date']
         self.last_buy_price = 0
         self.money = 100
         self.stat = 0
@@ -86,6 +88,8 @@ class Enveriment(object):
 
     def _get_reward(self, action):
         # NOTE: consider how to compute reward is write
+        assert self.stat in [0,1] and action in [0,1], 'Error marked: in Enveriment, self.stat: %s, action: %s, code: \
+                %s, date: %s, shape: %s'%(self.stat, action, self.code, self.date, (self.width, self.image_hight))
         if self.stat == 0 and action == 1:      # buy
             wave = self.df.ix[self.timecnt,'close'] / self.df.ix[self.timecnt,'open'] - 1
             wave = floor(wave * 10000) / 100
