@@ -4,15 +4,15 @@
 from pandas import Timestamp
 import pandas as pd
 import numpy as np
+import os
 from qntstock.time_series_system import *
-from qntstock.database import get_stock_list, get_connection
-from qntstock.utils import _sort, PATH, ProgressBar
+from qntstock.utils import _sort, PATH, FS_PATH, FS_PATH_OL, ProgressBar
+from qntstock.stock_data import get_stock_data
 
 class TradeSystem:
     def __init__(self, buy=None, sell=None, df=None, gain=None, loss=None, maxreduce=None, gainbias=0.007):
         self._buy           = buy
         self._sell          = sell
-        self.df             = df
         self.gain           = gain
         self.loss           = loss
         self.maxreduce      = maxreduce
@@ -23,7 +23,7 @@ class TradeSystem:
         self.keepdays       = None
 
 
-    def backtest(self, testlist='all', start='20110101', end=None, savepath=PATH+'/data/backtest_records.csv'):
+    def backtest(self, testlist='all', start='2014-01-01', end=None, savepath=PATH+'/data/backtest_records.csv'):
         """
         backtest(self, testlist='all', start='20110101', end=None):
 
@@ -42,36 +42,24 @@ class TradeSystem:
             None
         """
         if testlist is 'all':
-            testlist = []
-            for pool in ['0', '3', '6']:
-                testlist.extend(get_stock_list(stock_pool=pool))
-        con0 = get_connection(stock_pool='0')
-        con3 = get_connection(stock_pool='3')
-        con6 = get_connection(stock_pool='6')
-        con = {'0':con0, '3':con3, '6':con6}
-        records, records_tmp = pd.DataFrame(), pd.DataFrame()
+            testlist = os.listdir(FS_PATH)
+            testlist = [filename.split('.')[0] for filename in testlist]
+        #records, records_tmp = pd.DataFrame(), pd.DataFrame()
+        records_tmp = [None for _ in testlist]
         cnt = 0
         bar = ProgressBar(total=len(testlist))
-        for code in testlist:
+        for i, code in enumerate(testlist):
             bar.log(code)
-            sql = 'select distinct * from ' + code + ' where date>=' + start\
-                + ((' and date<='+end) if end is not None else '') + ';'
-            df = pd.read_sql(sql, con[code[2]])
-            self.df = _sort(df)
-            self.df['date'] = self.df['date'].apply(lambda x: Timestamp(x))
-            self.buy()
-            self.sell()
-            if self.record is not None and len(self.record) > 0:
-                self.record = self.record.apply(lambda record: self.integrate(record), axis=1)
-            if self.record is not None and len(self.record) > 0:
-                records_tmp = self.record.append(records_tmp)
-                cnt += 1
-            if cnt >= 100:
-                records = records_tmp.append(records)
-                records_tmp = pd.DataFrame()
-                cnt = 0
+            df = get_stock_data(code, start, end)
+            df['date'] = df['date'].apply(lambda x: Timestamp(x))
+            buy_record = self.buy(df)
+            buy_and_sell_record = self.sell(df, buy_record)
+            if buy_and_sell_record is not None and len(buy_and_sell_record) > 0:
+                buy_and_sell_record = buy_and_sell_record.apply(lambda record: self.integrate(df, record), axis=1)
+            buy_and_sell_record.insert(0,'code',[code for _ in range(len(buy_and_sell_record))])
+            records_tmp[i] = buy_and_sell_record
             bar.move()
-        records = records_tmp.append(records)
+        records = pd.concat(records_tmp)
         if len(records) > 0:
             self.avggainrate = round(records['gainrate'].mean(), 4) - self.gainbias
             self.successrate = round(len(records[records['gainrate']>self.gainbias]) / len(records), 4)
@@ -87,37 +75,40 @@ class TradeSystem:
         """
         考虑扩展性，不仅按照时间判断，还可能输出的是对某一天的打分。
         """
-        self.buy()
+        self.buy(df)
         pass
 
 
-    def buy(self):
+    def buy(self, df):
         """
-        生成一个self.record，至少包括列['buydate', 'buy']
+        生成一个buy_record，至少包括列['buydate', 'buy']
         buydate:买入日期
         buy:买入价
         """
         # NOTE: 涨停不能买入
-        self._buy(self)
-        if self.record is not None and len(self.record)>0:
-            self.record['valid'] = self.record.apply(lambda x: self._valid_buy(x), axis=1)
-            self.record = self.record.drop(np.where(self.record['valid'] == False)[0])
-            self.record = self.record.reset_index(drop=True)
+        buy_record = self._buy(df)
+        if buy_record is not None and len(buy_record)>0:
+            buy_record['valid'] = buy_record.apply(lambda x: _valid_buy(df, x), axis=1)
+            buy_record = buy_record.drop(np.where(buy_record['valid'] == False)[0])
+            buy_record = buy_record.reset_index(drop=True)
+        return buy_record
 
 
-    def sell(self):
+    def sell(self, df, buy_record):
         """
-        扩展self.record，包括列['selldate', 'sell']
+        生成buy_and_sell_record，包括列['selldate', 'sell']
         selldate:按条件卖出日期
         sell:按条件卖出价
         """
-        self._sell(self)
+        buy_and_sell_record = self._sell(df, buy_record)
+        return buy_and_sell_record
 
 
-    def integrate(self, record):
+    def integrate(self, df, record):
         """
-        扩展self.record，包括列['finaldate', 'final', 'type', 'gainrate']
-        finaldate:最终卖出日期
+        由于止盈或止损导致最终卖出点有变化（提前），原计划卖出是sell，最终卖出是final
+        生成final_record，包括列['finaldate', 'final', 'type', 'gainrate']
+        finaldate:最终卖出日期，由于
         final:最终卖出价
         type:卖出方式，包括止盈'gain'，止损'sell'，正常卖出'sell'
         gainrate:收益率
@@ -130,11 +121,11 @@ class TradeSystem:
         else:
             gain_price = record['buy'] * (1 + self.gain) if self.gain is not None else None
             loss_price = record['buy'] * (1 - self.loss) if self.loss is not None else None
-            buyidx =  self._get_data(record['buydate']).index[0]
-            sellidx =  self._get_data(record['selldate']).index[0]
+            buyidx =  _get_data(df, record['buydate']).index[0]
+            sellidx =  _get_data(df, record['selldate']).index[0]
             final_price, final_type, idx = None, None, None
             for idx in range(buyidx + 1, sellidx + 1):
-                data = self.df.loc[idx]
+                data = df.loc[idx]
                 final_price, final_type = (data['open'], 'loss') if data['open'] < loss_price \
                                      else (data['open'], 'gain') if data['open'] > gain_price \
                                      else (loss_price,   'loss') if data['low']  < loss_price \
@@ -142,7 +133,7 @@ class TradeSystem:
                                      else (None, None)
                 if final_type is not None:
                     break
-            record['finaldate'] = self.df.loc[idx]['date'] if final_price is not None else record['selldate']
+            record['finaldate'] = df.loc[idx]['date'] if final_price is not None else record['selldate']
             record['finaldate'] = pd.Timestamp(record['finaldate'])
             record['final'] = final_price if final_price is not None else record['sell']
             record['type'] = final_type if final_price is not None else 'sell'
@@ -151,26 +142,23 @@ class TradeSystem:
         return record
 
 
-    def _get_data(self, date):
-        return self.df[self.df['date']==date]
+def _get_data(df, date):
+    return df[df['date']==date]
 
 
-    def _offset_date(self, date, offset):
-        idx = self.df[self.df['date'] == date].index[0]
-        return self.df.loc[idx+offset, 'date'] if idx + offset < len(self.df) else None
+def _offset_date(df, date, offset):
+    idx = df[df['date'] == date].index[0]
+    return df.loc[idx+offset, 'date'] if idx + offset < len(df) else None
 
 
-    def _valid_buy(self, x):
-        last_date = self._offset_date(x['buydate'], -1)
-        close_price = self._get_data(last_date)['close'].values[0]
-        open_price = self._get_data(x['buydate'])['open'].values[0]
-        return True if open_price < close_price * 1.099 else False
+def _valid_buy(df, x):
+    last_date = _offset_date(df, x['buydate'], -1)
+    close_price = _get_data(df, last_date)['close'].values[0]
+    open_price = _get_data(df, x['buydate'])['open'].values[0]
+    return True if open_price < close_price * 1.099 else False
 
 
-def buy(self):
-    # import tushare as ts
-    # df = ts.get_k_data('002335',autype=None)
-    df = self.df
+def buy(df):
     ma_raise = factor_ma_raise(df)
     ma_long = factor_ma_long_position(df)
     cond_df = pd.DataFrame()
@@ -183,27 +171,31 @@ def buy(self):
     cond_df['5f'] = inflection(ma_line['MA_5'], strict=True, signal_type='fall')
     order =['5r', '5rc10', '5f']
     rdf = combine_backward(cond_df, order=order, period=20)
-    self.record = convert_record_to_date(rdf, df['date'])
-    if self.record is not None:
-        self.record['buydate'] = self.record['5f'].apply(lambda x: self._offset_date(x, 1))
-        self.record = self.record[pd.notnull(self.record['buydate'])]
+    buy_record = convert_record_to_date(rdf, df['date'])
+    if buy_record is not None:
+        buy_record['buydate'] = buy_record['5f'].apply(lambda x: _offset_date(df, x, 1))
+        buy_record = buy_record[pd.notnull(buy_record['buydate'])]
         # NOTE: 'open'也可能是'close'
-        self.record['buy'] = self.record['buydate'].apply(lambda x: self._get_data(x)['open'].values[0])
-        self.record = self.record[['buydate', 'buy']]
+        buy_record['buy'] = buy_record['buydate'].apply(lambda x: _get_data(df, x)['open'].values[0])
+        buy_record = buy_record[['buydate', 'buy']]
+    return buy_record
 
 
-def sell(self):
-    def offset_func(df, date):
-        idx = df[df['date'] == date].index[0]
-        return df.loc[idx+2, 'date'] if idx + 2 < len(df) else None
-    if self.record is not None:
-        self.record['selldate'] = self.record['buydate'].apply(lambda date: self._offset_date(date, 2))
-        self.record = self.record[pd.notnull(self.record['selldate'])]
-        self.record['sell'] = self.record['selldate'].apply(lambda date: self._get_data(date)['close'].values[0])
+def sell(df, buy_record):
+    ##def offset_func(df, date):
+    ##    idx = df[df['date'] == date].index[0]
+    ##    return df.loc[idx+2, 'date'] if idx + 2 < len(df) else None
+    buy_and_sell_record = buy_record
+    if buy_and_sell_record is not None:
+        buy_and_sell_record['selldate'] = buy_and_sell_record['buydate'].apply(lambda date: _offset_date(df, date, 2))
+        buy_and_sell_record = buy_and_sell_record[pd.notnull(buy_and_sell_record['selldate'])]
+        buy_and_sell_record['sell'] = buy_and_sell_record['selldate'].apply(lambda date: _get_data(df, date)['close'].values[0])
+    return buy_and_sell_record
 
 
 if __name__ == '__main__':
     df = pd.DataFrame()
     t = TradeSystem(buy=buy, sell=sell, df=df, gain=0.05, loss=0.05)
-    t.backtest(start='20160101')
-    print(t.avggainrate, t.successrate, t.keepdays)
+    #t.backtest(start='2017-01-01')
+    t.backtest(['000001','002230'],start='2017-01-01', savepath='test_trade_sys.csv')
+    print('gain rate:', t.avggainrate, '\nsuccess rate:', t.successrate, '\nkeep days:', t.keepdays)

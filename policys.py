@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from qntstock.database import get_df
+#from qntstock.database import get_df
+from qntstock.stock_data import get_stock_list, get_stock_data
 import numpy as np
 from qntstock.createimg import *
 from math import floor
@@ -21,7 +22,8 @@ class BasePolicy(object):
 
         if 'close' not in features:
             features.append('close')
-        own_features = list(get_df('002028').columns)
+        sample_code = env.codelist[0]
+        own_features = list(get_stock_data(sample_code).columns)
         env.features = [i for i in features if i in own_features]
         missing_list = [i for i in features if i not in own_features]
         if len(missing_list) >0:

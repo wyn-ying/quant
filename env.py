@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from qntstock.database import get_stock_list, get_df
+#from qntstock.database import get_stock_list, get_df
+from qntstock.stock_data import get_stock_list, get_stock_data
 import logging
 from random import choice
 from qntstock import policys
@@ -14,6 +15,7 @@ class Enveriment(object):
         self.action_space = [0, 1]
         self.n_actions = 2
         self.n_features = None
+        self.codelist = get_stock_list()
         if policy is not None:
             if hasattr(policys, policy):
                 policy = getattr(policys, policy)
@@ -25,11 +27,10 @@ class Enveriment(object):
         self._set_features(features)
         self.df = data_df
         self.df_has_set = True if data_df is not None else False
-        self.start = start if start is not None else '20140101'
+        self.start = start if start is not None else '2014-01-01'
         self.end = end
         self.steps = None
         self.timecnt =None
-        self.codelist = []
         self.stat = None
         self.code = None
         self.date = None
@@ -37,8 +38,6 @@ class Enveriment(object):
         self.lstart = None
         self.lend = None
         self.lsteps = None
-        for i in ['0','3','6']:
-            self.codelist.extend(get_stock_list(stock_pool=i))
 
     def reset(self, code=None, start=None, end=None, steps=None, must_this=True):
         lcode = choice(self.codelist) if code is None else code
@@ -75,7 +74,7 @@ class Enveriment(object):
         self.p.set_features(self, features)
 
     def _get_df(self, code, start, end, steps):
-        df = get_df(code, start=start, end=end)
+        df = get_stock_data(code, start_date=start, end_date=end)
         df = df.tail(self.width+steps) if steps is not None else df
         df = df.reset_index(drop=True)
         return df
@@ -146,8 +145,8 @@ class Enveriment(object):
 if __name__ == '__main__':
     e = Enveriment(policy='FollowPolicy', features=['open','high','low','close'])
     #e = Enveriment(policy='RLPolicy', features=['open','high','low','close','volume'])
-    # observation = e.reset(code='600212',start='20170101', steps=3) # 600212-->15+3
-    observation = e.reset(start='20170101') # 600212-->15+3
+    # observation = e.reset(code='600212',start='2017-01-01', steps=3) # 600212-->15+3
+    observation = e.reset(start='2017-01-01') # 600212-->15+3
     print(observation, '\n')
     print('Some infermation after reset:', e.code)
     done = False
@@ -165,4 +164,4 @@ if __name__ == '__main__':
             print('cnt: ', cnt)
             print(e.code, e.money)
             print(e.last_buy_price, e.df.tail(1)['close'])
-            observation = e.reset(code='600212',start='20170101',steps=2)
+            observation = e.reset(code='600212',start='2017-01-01',steps=2)

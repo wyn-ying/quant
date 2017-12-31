@@ -6,6 +6,7 @@ import pandas as np
 from qntstock.factor_i import *
 from qntstock.index import *
 from qntstock.factor_base_func import *
+from qntstock.stock_data import get_stock_data
 
 def combine_backward(df, order, period=30, strict=[]):
     """
@@ -201,8 +202,7 @@ def _backward(x, signal_loc, strict):
 
 
 if __name__ == '__main__':
-    import tushare as ts
-    df = ts.get_k_data('002335',autype=None)
+    df = get_stock_data('002230',start_date='2017-01-01')
     ma_raise = factor_ma_raise(df)
     ma_long = factor_ma_long_position(df)
     cond_df = pd.DataFrame()
@@ -218,4 +218,5 @@ if __name__ == '__main__':
     rdf = combine_backward(cond_df, order=order, period=20)
 #    print(rdf)
     print(convert_record_to_date(rdf, df['date']))
-#    print(convert_record_to_signal(rdf, df['date']))
+    print('==========')
+    print(convert_record_to_signal(rdf, df['date']))
