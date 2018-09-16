@@ -168,6 +168,29 @@ def convert_record_to_date(rdf, date):
     return df
 
 
+def convert_date_to_signal(rdf, date):
+    """
+    convert_date_to_signal(rdf, date):
+
+    将信号组合索引数据的结果转化成信号序列组合。
+    combine和convert配合使用，即按一定方式去除无用或重复信号。
+
+    Input:
+        rdf: (DataFrame): 待转换到信号组合日期数据的集合
+
+        date: (Series): 信号组合索引对应的日期
+
+    Output：
+        (DataFrame): 返回信号序列组合
+    """
+    df = pd.DataFrame(date)
+    for col in list(rdf.columns):
+        df[col] = 0
+        for raw in rdf[col]:
+            df[col].iloc[np.where(date==raw)[0][0]] = 1
+    return df
+
+
 def _constrant(x, first, last, period):
     if x[last] - x[first] > period:
         x[first] = np.nan

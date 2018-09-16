@@ -8,6 +8,7 @@ import os
 from qntstock.time_series_system import *
 from qntstock.utils import _sort, PATH, FS_PATH, FS_PATH_OL, ProgressBar
 from qntstock.stock_data import get_stock_data
+from functools import reduce
 
 class TradeSystem:
     def __init__(self, buy=None, sell=None, df=None, gain=None, loss=None, maxreduce=None, gainbias=0.007):
@@ -44,7 +45,7 @@ class TradeSystem:
         if testlist is 'all':
             testlist = os.listdir(FS_PATH)
             testlist = [filename.split('.')[0] for filename in testlist]
-        #records, records_tmp = pd.DataFrame(), pd.DataFrame()
+        records = None
         records_tmp = [None for _ in testlist]
         cnt = 0
         bar = ProgressBar(total=len(testlist))
@@ -56,16 +57,21 @@ class TradeSystem:
             buy_and_sell_record = self.sell(df, buy_record)
             if buy_and_sell_record is not None and len(buy_and_sell_record) > 0:
                 buy_and_sell_record = buy_and_sell_record.apply(lambda record: self.integrate(df, record), axis=1)
-            buy_and_sell_record.insert(0,'code',[code for _ in range(len(buy_and_sell_record))])
+                buy_and_sell_record.insert(0,'code',[code for _ in range(len(buy_and_sell_record))])
             records_tmp[i] = buy_and_sell_record
             bar.move()
-        records = pd.concat(records_tmp)
-        if len(records) > 0:
+        if len(records_tmp) > 1:
+            all_None = reduce(lambda x,y: None if x is None and y is None else 1, records_tmp)
+        else:
+            all_None = None if records_tmp[0] is None else 1
+        if all_None is not None:
+            records = pd.concat(records_tmp)
+        if records is not None and len(records) > 0:
             self.avggainrate = round(records['gainrate'].mean(), 4) - self.gainbias
             self.successrate = round(len(records[records['gainrate']>self.gainbias]) / len(records), 4)
             self.keepdays = round(records['keepdays'].mean(), 2)
             if savepath is not None:
-                records.to_csv(savepath)
+                records.to_csv(savepath, index=False)
                 print('records is saved at '+savepath)
         else:
             print('No records')
@@ -89,7 +95,7 @@ class TradeSystem:
         buy_record = self._buy(df)
         if buy_record is not None and len(buy_record)>0:
             buy_record['valid'] = buy_record.apply(lambda x: _valid_buy(df, x), axis=1)
-            buy_record = buy_record.drop(np.where(buy_record['valid'] == False)[0])
+            buy_record = buy_record.reset_index(drop=True).drop(np.where(buy_record['valid'] == False)[0])
             buy_record = buy_record.reset_index(drop=True)
         return buy_record
 
@@ -119,10 +125,10 @@ class TradeSystem:
             record['final_price'] = None
             record['final_type'] = None
         else:
-            gain_price = record['buy'] * (1 + self.gain) if self.gain is not None else None
-            loss_price = record['buy'] * (1 - self.loss) if self.loss is not None else None
-            buyidx =  _get_data(df, record['buydate']).index[0]
-            sellidx =  _get_data(df, record['selldate']).index[0]
+            gain_price = record['buy'] * (1 + self.gain) if self.gain is not None else 9999999
+            loss_price = record['buy'] * (1 - self.loss) if self.loss is not None else 0
+            buyidx =  _get_date(df, record['buydate']).index[0]
+            sellidx =  _get_date(df, record['selldate']).index[0]
             final_price, final_type, idx = None, None, None
             for idx in range(buyidx + 1, sellidx + 1):
                 data = df.loc[idx]
@@ -142,7 +148,7 @@ class TradeSystem:
         return record
 
 
-def _get_data(df, date):
+def _get_date(df, date):
     return df[df['date']==date]
 
 
@@ -153,8 +159,8 @@ def _offset_date(df, date, offset):
 
 def _valid_buy(df, x):
     last_date = _offset_date(df, x['buydate'], -1)
-    close_price = _get_data(df, last_date)['close'].values[0]
-    open_price = _get_data(df, x['buydate'])['open'].values[0]
+    close_price = _get_date(df, last_date)['close'].values[0]
+    open_price = _get_date(df, x['buydate'])['open'].values[0]
     return True if open_price < close_price * 1.099 else False
 
 
@@ -176,7 +182,7 @@ def buy(df):
         buy_record['buydate'] = buy_record['5f'].apply(lambda x: _offset_date(df, x, 1))
         buy_record = buy_record[pd.notnull(buy_record['buydate'])]
         # NOTE: 'open'也可能是'close'
-        buy_record['buy'] = buy_record['buydate'].apply(lambda x: _get_data(df, x)['open'].values[0])
+        buy_record['buy'] = buy_record['buydate'].apply(lambda x: _get_date(df, x)['open'].values[0])
         buy_record = buy_record[['buydate', 'buy']]
     return buy_record
 
@@ -189,13 +195,17 @@ def sell(df, buy_record):
     if buy_and_sell_record is not None:
         buy_and_sell_record['selldate'] = buy_and_sell_record['buydate'].apply(lambda date: _offset_date(df, date, 2))
         buy_and_sell_record = buy_and_sell_record[pd.notnull(buy_and_sell_record['selldate'])]
-        buy_and_sell_record['sell'] = buy_and_sell_record['selldate'].apply(lambda date: _get_data(df, date)['close'].values[0])
+        buy_and_sell_record['sell'] = buy_and_sell_record['selldate'].apply(lambda date: _get_date(df, date)['close'].values[0])
     return buy_and_sell_record
 
 
 if __name__ == '__main__':
     df = pd.DataFrame()
-    t = TradeSystem(buy=buy, sell=sell, df=df, gain=0.05, loss=0.05)
+    from qntstock.strategy import buy_1, sell_1
+    t = TradeSystem(buy=buy_1, sell=sell_1, df=df, gain=0.05, loss=0.05)
     #t.backtest(start='2017-01-01')
-    t.backtest(['000001','002230'],start='2017-01-01', savepath='test_trade_sys.csv')
+    #t.backtest(['000001','002230'],start='2017-01-01', savepath='test_trade_sys.csv')
+    #t.backtest('all',start='2016-01-01', savepath='test_buy_1_sell_1.csv')
+    #t.backtest(['603758'],start='2016-01-01', savepath='test_sell_1.csv')
+    t.backtest(['002032'],start='2016-01-01', savepath='test_sell_1.csv')
     print('gain rate:', t.avggainrate, '\nsuccess rate:', t.successrate, '\nkeep days:', t.keepdays)

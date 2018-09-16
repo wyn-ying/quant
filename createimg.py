@@ -3,7 +3,7 @@
 
 import numpy as np
 from qntstock.utils import PATH
-from qntstock.database import get_df
+from qntstock.stock_data import get_stock_data
 
 def translate_ticks(df, xsize, ysize):
     '''
@@ -105,7 +105,7 @@ def translate_img(df, xsize, ysize):
     return img
 
 if __name__ == '__main__':
-    df=get_df('sh600230')
+    df=get_stock_data('600230')
     df=df.tail(10)
     img = translate_volumes(df,10,15)
     print(img[:,:,0])

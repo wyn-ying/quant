@@ -24,7 +24,7 @@ def hhv(sdf, name, num=(10,30,60)):
     tdf=sdf.copy()
     name_list = list()
     for n in num:
-        hhv_tmp = tdf[name].rolling(center=False, window=n).mean()
+        hhv_tmp = tdf[name].rolling(center=False, window=n).max()
         new_name = name + '_HHV_' + str(n)
         name_list.append(new_name)
         tdf[new_name] = hhv_tmp
@@ -51,7 +51,7 @@ def llv(sdf, name, num=(10,30,60)):
     tdf=sdf.copy()
     name_list = list()
     for n in num:
-        llv_tmp = tdf[name].rolling(center=False, window=n).mean()
+        llv_tmp = tdf[name].rolling(center=False, window=n).min()
         new_name = name + '_LLV_' + str(n)
         name_list.append(new_name)
         tdf[new_name] = llv_tmp

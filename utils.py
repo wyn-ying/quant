@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from qntstock.local import DB_PATH, PATH
+from qntstock.local import DB_PATH, PATH, FS_PATH, FS_PATH_OL
 import sys
 
 class ProgressBar:

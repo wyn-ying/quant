@@ -11,16 +11,16 @@ import random
 from urllib.error import HTTPError
 
 
-def get_stock_list(way_path=None):
+def get_stock_list(way_path=None, autype='D'):
     if way_path is None:
         way_path = FS_PATH
-    if not os.path.exists(way_path):
-        raise OSError('path ', way_path, 'does not exist.')
-    l = os.listdir(way_path)
+    if not os.path.exists(way_path+'/'+autype):
+        raise OSError('path ', way_path+'/'+autype, 'does not exist.')
+    l = os.listdir(way_path+'/'+autype)
     return [i.split('.')[0] for i in l]
 
 
-def get_stock_data(code, start_date=None, end_date=None, way='fs', way_path=None):
+def get_stock_data(code, start_date=None, end_date=None, way='fs', way_path=None, autype='D'):
     '''
     get stock data df
 
@@ -47,7 +47,7 @@ def get_stock_data(code, start_date=None, end_date=None, way='fs', way_path=None
     if way =='fs':
         if way_path is None:
             way_path = FS_PATH
-        way_path = way_path+'/'+code+'.csv'
+        way_path = way_path+'/'+autype+'/'+code+'.csv'
 
     if way in ['csv', 'fs'] and not os.path.exists(way_path):
         raise OSError('file ', way_path, 'does not exist.')
@@ -57,16 +57,22 @@ def get_stock_data(code, start_date=None, end_date=None, way='fs', way_path=None
             conn = ts.get_apis()
         else:
             conn = way_path
-        df = ts.bar(code, conn=conn, start_date=start_date, end_date=end_date, adj='hfq', factors=['tor'])
-        df = df.reset_index().sort_values('datetime')
-        df.columns = ['date','code','open','close','high','low','volume','amount','tor']
-        df = df[['date','open','close','high','low','volume','amount','tor']]
+        df = ts.bar(code, conn=conn, start_date=start_date, end_date=end_date, adj='hfq', freq=autype, factors=['tor'])
+        if df is not None and len(df) > 0:
+            df = df.reset_index().sort_values('datetime')
+            df = df.rename(columns={'datetime':'date', 'vol':'volume'})
+            df = df[['date','open','close','high','low','volume','amount','tor']]
+        else:
+            df = pd.DataFrame(None, columns=['date','open','close','high','low','volume','amount','tor'])
     else:   #'csv' or 'fs'
         df = pd.read_csv(way_path)
 
         if way == 'csv' and not set(['date','open','close','high','low','volume','amount','tor']).issubset(set(df.columns)):
             raise OSError('the csv file does not contain the necessary columns:\n[date,open,close,high,low,volume,amount,tor]')
 
+        if autype in ['1MIN','5MIN','15MIN','30MIN','60MIN']:
+            end_date = end_date+' 24:00:00'
+            start_date = start_date+' 00:00:00'
         if start_date is not None and end_date is not None:
             df = df[(df['date']>=start_date) & (df['date']<=end_date)]
         elif start_date is not None:
@@ -80,7 +86,7 @@ def get_stock_data(code, start_date=None, end_date=None, way='fs', way_path=None
     return df
 
 
-def update_stock_data(code, new_data_df, way='csv', way_path=None):
+def update_stock_data(code, new_data_df, way='csv', way_path=None, autype='D'):
     '''
     update stock data using new_data_df, if one day exist in new_data_df, using values in new_data_df.
 
@@ -107,7 +113,7 @@ def update_stock_data(code, new_data_df, way='csv', way_path=None):
     if way =='fs':
         if way_path is None:
             way_path = FS_PATH
-        way_path = way_path+'/'+code+'.csv'
+        way_path = way_path+'/'+autype+'/'+code+'.csv'
 
     if not os.path.exists(way_path):
         print('Warning: file ', way_path, 'does not exist.')
@@ -142,7 +148,7 @@ def update_stock_data(code, new_data_df, way='csv', way_path=None):
         df.to_csv(way_path, index=False)
 
 
-def update_all_stock_data(start_date, end_date, fs_path=None, code_set=None):
+def update_all_stock_data(start_date, end_date, fs_path=None, code_set=None, autype='D'):
     '''
     update all stock data
 
@@ -165,8 +171,8 @@ def update_all_stock_data(start_date, end_date, fs_path=None, code_set=None):
             conn = ts.get_apis()
             for code in new_code_set:
                 print('now downloading new data ', code)
-                new_data_df = get_stock_data(code, start_date, end_date, 'web', conn)
-                update_stock_data(code, new_data_df, 'fs', fs_path)
+                new_data_df = get_stock_data(code, start_date, end_date, 'web', conn, autype)
+                update_stock_data(code, new_data_df, 'fs', fs_path, autype)
                 done_code_set.add(code)
                 t = random.choice([0.1,0.3,0.5])
                 time.sleep(t)
@@ -190,8 +196,8 @@ def update_all_stock_data(start_date, end_date, fs_path=None, code_set=None):
             conn = ts.get_apis()
             for code in tmp_fail_code_set:
                 print('now re-downloading new data ', code)
-                new_data_df = get_stock_data(code, start_date, end_date, 'web', conn)
-                update_stock_data(code, new_data_df, 'fs', fs_path)
+                new_data_df = get_stock_data(code, start_date, end_date, 'web', conn, autype)
+                update_stock_data(code, new_data_df, 'fs', fs_path, autype)
                 done_code_set.add(code)
                 t = random.choice([2,1.7,1.9,1.5])
                 time.sleep(t)
@@ -208,7 +214,7 @@ def update_all_stock_data(start_date, end_date, fs_path=None, code_set=None):
     print('Failed code set:', fail_code_set)
 
 
-def update_all_today_online(last_date=None, code_set=None):
+def update_all_today_online(last_date=None, code_set=None, autype='D'):
     '''
     update all stock data today, using ts.get_day_all(date).
 
@@ -296,6 +302,10 @@ if __name__ == "__main__":
     #print(get_stock_data('002478',
     #    start_date='2017-01-01',way='fs',way_path='/home/wyn/data/stock_data/'))
 
-    update_all_stock_data('2017-12-23','2017-12-29')
-
+    #update_all_stock_data('2017-12-29','2018-02-10')
+    #update_all_stock_data('2014-01-01','2018-02-10', autype='60MIN')
     #update_all_today_online('2017-12-25')
+    update_all_stock_data('2018-04-06','2018-09-08', autype='D')
+    update_all_stock_data('2018-04-06','2018-09-08', autype='W')
+    update_all_stock_data('2018-04-06','2018-09-08', autype='60MIN')
+    #print(get_stock_data('603696','2018-02-10','2018-03-24','web', autype='60MIN'))
