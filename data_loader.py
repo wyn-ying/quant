@@ -231,10 +231,93 @@ class DataLoader():
         fail_code_list = [code for code in fail_code_list if code is not None]
         self.utils.logger.info('==========\n==========\nFailed code set: %s'%fail_code_list)
 
+    def update_all_today_online(self, last_date=None, code_set=None, autype='D'):
+        '''
+        update all stock data today, using ts.get_day_all(date).
+
+        NOTE:   1. not hfq data, only use during 9:30am - 15:00pm for speed.
+                must use update_stock_data() to overwrite.
+                2. if one stock ting2 pai2 in last_date, this function will not conclude this stock.
+                3. the reference day to compute adj is *before* and *the nearest to* param "last_date"
+                details see the building of code_set
+        ---
+        return  None
+        '''
+        today_date = datetime.datetime.now().strftime('%Y-%m-%d')
+        today_all_df = ts.get_day_all(today_date)
+        lastday_date = last_date
+        if lastday_date > today_date:
+            raise OSError('"last_date" is later than today. please check again.')
+        if lastday_date is  None:
+            lastday_date = today_date
+        lastday_date, lastday_all_df = self._get_nearest_trade_date_and_df_before(lastday_date)
+
+        # 根据昨天的数据和本地csv数据，计算出后复权的权重比例
+        # 再计算今天对应的后复权股价，写进csv文件里
+        today_all_df = today_all_df[today_all_df['volume']>10]
+        lastday_all_df = lastday_all_df[lastday_all_df['volume']>10]
+        new_code_set = (set(today_all_df['code']) & set(lastday_all_df['code'])) if code_set is None else set(code_set)
+
+        for code in new_code_set:
+            lastday_code_df = lastday_all_df[lastday_all_df['code']==code]
+            old_df = get_stock_data(code, way='fs')
+            if lastday_date not in set(old_df['date']):
+                print('Warning: ', code, ' the last trade date in filesystem is not match with it in web.')
+                print('    jump to next stock code. if all code makes warning, change the param "last_date".')
+            else:
+                old_last_series = old_df[old_df['date']==lastday_date]
+                adj = self._comput_adj_with(old_last_series, lastday_code_df)
+
+                new_df = today_all_df[today_all_df['code'] == code]
+                new_df['date'] = today_date
+                new_df = new_df[['date','open','price','high','low','volume','amount','turnover']]
+                new_df.columns = ['date','open','close','high','low','volume','amount','tor']
+                new_df['open'] = round(new_df['open'] * adj, 2)
+                new_df['close'] = round(new_df['close'] * adj, 2)
+                new_df['high'] = round(new_df['high'] * adj, 2)
+                new_df['low'] = round(new_df['low'] * adj, 2)
+
+                old_df = old_df[old_df['date']!=today_date]
+
+                df = pd.concat([old_df, new_df])
+                df.to_csv(FS_PATH_OL+'/'+code+'.csv', index=False)
+
+    def _get_nearest_trade_date_and_df_before(self, lastday_date):
+        lastday = datetime.datetime.strptime(lastday_date, '%Y-%m-%d')
+        lastday_all_df = None
+        e = None
+        for _ in range(30):
+            lastday = lastday - datetime.timedelta(days=1)
+            try_count = 0
+            while try_count < 3:
+                try:
+                    lastday_all_df = ts.get_day_all(lastday.strftime('%Y-%m-%d'))
+                except HTTPError as err:
+                    if err.msg == 'Not Found':
+                        try_count += 1
+                        e = err
+                    else:
+                        raise err
+                if lastday_all_df is not None:
+                    break
+            if lastday_all_df is not None:
+                break
+        if lastday_all_df is None:
+            raise e
+        return lastday.strftime('%Y-%m-%d'), lastday_all_df
+
+
+    def _comput_adj_with(self, old_last_series, lastday_code_df):
+        adj1 = old_last_series['open'].values[0] / lastday_code_df['open'].values[0]
+        adj2 = old_last_series['high'].values[0] / lastday_code_df['high'].values[0]
+        adj3 = old_last_series['low'].values[0] / lastday_code_df['low'].values[0]
+        adj4 = old_last_series['close'].values[0] / lastday_code_df['price'].values[0]
+        return (adj1 + adj2 + adj3 + adj4) / 4
+
 
 if __name__ == "__main__":
     dl = DataLoader()
     # dl.update_all_stock_data('2018-09-09','2018-09-15', autype='D')
-    dl.update_all_stock_data('2017-12-19','2018-09-15', autype='D')
+    # dl.update_all_stock_data('2017-12-19','2018-09-15', autype='D')
     dl.update_all_stock_data('2017-12-19','2018-09-15', autype='W')
     dl.update_all_stock_data('2017-12-19','2018-09-15', autype='60MIN')
