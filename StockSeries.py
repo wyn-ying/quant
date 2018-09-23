@@ -6,10 +6,11 @@ from pandas import Series
 from qntstock import factor_base_func
 
 class StockSeries(Series):
-    def __init__(self, s, stat=None):
+    def __init__(self, s, col_name=None, stat=None):
         Series.__init__(self, s)
         self.s = s
         self.stat = stat
+        self.col_name = col_name
 
 
     def __call__(self):

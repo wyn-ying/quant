@@ -33,18 +33,20 @@ class StockDataFrame(DataFrame):
 
     def hhv(self, n=5, col='close', inplace=False):
         hhv_s = self.df[col].rolling(center=False, window=n).max()
+        col_name = self._get_name(col+'_HHV_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_HHV_'+str(n))] = hhv_s
+            self.df[col_name] = hhv_s
         else:
-            return StockSeries(hhv_s)
+            return StockSeries(hhv_s, col_name)
 
 
     def llv(self, n=5, col='close', inplace=False):
         llv_s = self.df[col].rolling(center=False, window=n).min()
+        col_name = self._get_name(col+'_LLV_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_LLV_'+str(n))] = llv_s
+            self.df[col_name] = llv_s
         else:
-            return StockSeries(llv_s)
+            return StockSeries(llv_s, col_name)
 
 
     #NOTE: 类似用ma滤波，但是时效性和降噪性能更优
@@ -105,10 +107,11 @@ class StockDataFrame(DataFrame):
             else:
                 last_max_s[i] = last_max_s[i-1]
 
+        col_name = self._get_name(col+'_LASTMAX_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_LASTMAX_'+str(n))] = last_max_s
+            self.df[col_name] = last_max_s
         else:
-            return StockSeries(last_max_s)
+            return StockSeries(last_max_s, col_name)
 
 
     def last_min(self, n=5, col='close', inplace=False):
@@ -168,38 +171,42 @@ class StockDataFrame(DataFrame):
             else:
                 last_min_s[i] = last_min_s[i-1]
 
+        col_name = self._get_name(col+'_LASTMIN_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_LASTMIN_'+str(n))] = last_min_s
+            self.df[col_name] = last_min_s
         else:
-            return StockSeries(last_min_s)
+            return StockSeries(last_min_s, col_name)
 
 
     def ma(self, n=5, col='close', inplace=False):
         ma_s = round(self.df[col].rolling(center=False, window=n).mean(), 2)
+        col_name = self._get_name(col+'_MA_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_MA_'+str(n))] = ma_s
+            self.df[col_name] = ma_s
         else:
-            return StockSeries(ma_s)
+            return StockSeries(ma_s, col_name)
 
 
     def expma(self, n=5, col='close', inplace=False):
         expma_s = round(self.df[col].ewm(span=n, adjust=False).mean(), 2)
+        col_name = self._get_name(col+'_EXPMA_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_EXPMA_'+str(n))] = expma_s
+            self.df[col_name] = expma_s
         else:
-            return StockSeries(expma_s)
+            return StockSeries(expma_s, col_name)
 
 
-    def bbi(self, nums=(3, 6, 12, 24), col='close', inplace=False):
+    def bbi(self, nums=[3, 6, 12, 24], col='close', inplace=False):
         ma = DataFrame()
         for n in nums:
-            ma[n] = round(self.ma(col, n), 2)
+            ma[n] = round(self.ma(n, col), 2)
 
         bbi_s = round(ma[nums].apply(sum, axis=1)/4, 2)
+        col_name = self._get_name(col+'_BBI_'+str(n))
         if inplace:
-            self.df[self._get_name(col+'_BBI_'+str(n))] = bbi_s
+            self.df[col_name] = bbi_s
         else:
-            return StockSeries(bbi_s)
+            return StockSeries(bbi_s, col_name)
 
 
     def macd(self, fast=12, slow=26, avg=9, col='close', inplace=False):
@@ -249,10 +256,11 @@ class StockDataFrame(DataFrame):
     def rsi(self, n=6, inplace=False):
         rsi_n = talib.RSI(tdf['close'].values, timeperiod=n)
         rsi_s = round(pd.Series(rsi_n, index=self.df.index).fillna(0), 1)
+        col_name = 'RSI_'+str(n)
         if inplace:
-            self.df['RSI_'+str(n)] = rsi_s
+            self.df[col_name] = rsi_s
         else:
-            return StockSeries(rsi_s)
+            return StockSeries(rsi_s, col_name)
 
 
     def wr(self, period=14, inplace=False):
@@ -261,10 +269,11 @@ class StockDataFrame(DataFrame):
         close = self.df['close'].values
         wr_n = talib.WILLR(high , low, close, period) * -1
         wr_s = pd.Series(wr_n, index=self.df.index)
+        col_name = 'WR_'+str(period)
         if inplace:
-            self.df['WR_'+str(period)] = wr_s
+            self.df[col_name] = wr_s
         else:
-            return StockSeries(wr_s)
+            return StockSeries(wr_s, col_name)
 
 
     def boll(self, n=20, std=2, inplace=False):
