@@ -6,7 +6,7 @@ import pandas as np
 from qntstock.factor_i import *
 from qntstock.index import *
 from qntstock.factor_base_func import *
-from qntstock.stock_data import get_stock_data
+from qntstock.data_loader import DataLoader
 
 def combine_backward(df, order, period=30, strict=[]):
     """
@@ -225,7 +225,8 @@ def _backward(x, signal_loc, strict):
 
 
 if __name__ == '__main__':
-    df = get_stock_data('002230',start_date='2017-01-01')
+    dl = DataLoader()
+    df = dl.get_stock_data('002230',start_date='2017-01-01')
     ma_raise = factor_ma_raise(df)
     ma_long = factor_ma_long_position(df)
     cond_df = pd.DataFrame()

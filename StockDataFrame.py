@@ -3,15 +3,14 @@
 
 import pandas as pd
 from pandas import DataFrame, Timestamp
-import qntstock.time_series_system as tss
 from qntstock.StockSeries import StockSeries
 
 class StockDataFrame(DataFrame):
-    def __init__(self, df, stat=None):
+    def __init__(self, df):
         #DataFrame.__init__(self, df)
         super(StockDataFrame, self).__init__(df)
         self.df = df
-        self.stat = stat
+        self.df['date'] = self.df['date'].apply(lambda x: Timestamp(x))
 
 
     def __call__(self):
@@ -20,15 +19,26 @@ class StockDataFrame(DataFrame):
 
     def __getitem__(self, x):
         if isinstance(x, str):
-            return StockSeries(self.df[x])
+            return StockSeries(self.df[x], x)
         elif isinstance(x, list):
-            return StockDataFrame(self.df[x], self.stat)
+            return StockDataFrame(self.df[x])
         else:
             raise OSError('Error: Unexpected index for StockDataFrame.')
 
 
     def _get_name(self, name):
         return name if name[:5] != 'close' else name[6:]
+
+
+    def add(self, indicator_name, *args, **kwargs):
+        indicator = getattr(self, indicator_name)
+        if indicator is not None:
+            cur_result = indicator(*args, **kwargs)
+            if isinstance(cur_result, StockDataFrame):
+                self.df = pd.concat([self.df, cur_result.df], axis=1)
+            elif isinstance(cur_result, StockSeries):
+                col_name = cur_result.col_name
+                self.df[col_name] = cur_result
 
 
     def hhv(self, n=5, col='close', inplace=False):
