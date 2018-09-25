@@ -1,6 +1,7 @@
 #/usr/bin/python
 # -*- coding: utf-8 -*-
 import pandas as pd
+from pandas import Timestamp
 import qntstock.time_series_system as tss
 from qntstock.data_loader import DataLoader
 from qntstock.StockDataFrame import StockDataFrame as SDF
@@ -98,6 +99,39 @@ class FeatureBuilder():
             return SS(cur_signal, col_name)
 
 
+    def apply_time_series(self, in_col_names, date_s, inplace):
+        """
+        change signals [in_col_names] of [self.df] with time scale [date_s]
+        NOTE: x+timedelta(hours=20) for D, x+timedelta(hours=22) for W
+        """
+        to_short_interval = True if date_s[1] - date_s[0] <= self.df.date[1] - self.df.date[0] else False
+        if to_short_interval:
+            df = pd.DataFrame(0, index=date_s, columns=in_col_names)
+
+            #TODO: check errors
+            df_idx = pd.DataFrame(date_s)
+            df_idx['idx'] = 0
+            ll, lb = range(len(self.df.date)),  list(self.df.date) + [Timestamp(1999999999999999999), ]
+            df_idx.idx = pd.cut(df_idx.date, bins=lb, labels=ll)
+            d_idx = df_idx.set_index('date').to_dict()['idx']
+            df_data = self.df[['date']+in_col_names].copy(deep=True)[in_col_names] # df_data = self.df[in_col_names]
+            df = df.apply(lambda x: df_data.ix[d_idx[Timestamp(x.name)]], axis=1)
+            df = df.reset_index(drop=False)
+            # df = pd.concat([pd.DataFrame(date_s), df], axis=1)
+        else:
+            df = self.df[['date']+in_col_names].copy(deep=True)[in_col_names]
+            ll, lb = list(date_s), [Timestamp(0), ] + list(date_s)
+            df.date = pd.cut(self.df.date, bins=lb, labels=ll)
+            #TODO: now only "any" method, should add "all" method
+            df = df.groupby(df.date).sum().clip_upper(1).reset_index(drop=True)
+            df = pd.concat([pd.DataFrame(date_s), df], axis=1)
+
+        if inplace:
+            self.df = df
+        else:
+            return SDF(df)
+
+
     def to_coarse_grained(self, signal_cols, df_cg):
         """
         combine fine-grained signal to coarse-grained
@@ -131,7 +165,7 @@ class FeatureBuilder():
         return df
 
 
-   def combine_backward(self, order, period=30, strict=[]):
+    def combine_backward(self, order, period=30, strict=[]):
         return StockDataFrame(tss.combine_backward(self.df, order, period, strict), stat='record')
 
 
@@ -213,7 +247,11 @@ class FeatureBuilder():
 
 if __name__ == '__main__':
     dl = DataLoader()
-    df = dl.get_stock_data('002230')
+    df = dl.get_stock_data('002230', start_date='2015-01-01', end_date='2017-12-31')
+    df_w = dl.get_stock_data('002230', start_date='2015-01-01', end_date='2017-12-31', autype='W')
+    df_w = SDF(df_w)
+    df_60= dl.get_stock_data('002230', start_date='2015-01-01', end_date='2017-12-31', autype='60MIN')
+    df_60= SDF(df_60)
     fb = FeatureBuilder(df)
     # fb.add('ma', inplace=True)
     # fb.add('macd', inplace=True)
@@ -223,4 +261,6 @@ if __name__ == '__main__':
     fb.add('bbi')
     fb.add_signal('increase', 'MA_5')
     fb.sig_not('MA_5_increase')
-    print(fb.df.head(30))
+    # print(fb.apply_time_series(['MA_5_increase'], df_w['date'], inplace=False))
+    print(fb.apply_time_series(['MA_5_increase'], df_60['date'], inplace=False))
+    print(fb.df.tail(30))
