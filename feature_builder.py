@@ -8,9 +8,8 @@ from qntstock.StockDataFrame import StockDataFrame as SDF
 from qntstock.StockSeries import StockSeries as SS
 
 class FeatureBuilder():
-    def __init__(self, df, state=None):
+    def __init__(self, df):
         self.df = SDF(df)
-        self.state = state
 
     def add(self, indicator_name, *args, **kwargs):
         if 'inplace' not in kwargs.keys():
@@ -138,84 +137,50 @@ class FeatureBuilder():
             return SDF(df)
 
 
-    def combine_backward(self, order, period=30, strict=[]):
-        return StockDataFrame(tss.combine_backward(self.df, order, period, strict), stat='record')
-
-
-    def combine_forward(self, order, period=None, strict=[]):
-        return StockDataFrame(tss.combine_forward(self.df, order, period, strict), stat='record')
+    def combine(self, order, forward=True, suffix='_combined', period=30, strict=[], inplace=False):
+        """
+        combine given signals, save first matching time and drop others
+        order: the signal sequences, the left signal will happen early than the right signal
+        forward: if True, matching is from left to right of "order", the first nearest time in right signal will be saved to match each left signal
+                 if False, matching is from right to left, the last nearest time in left signal will be saved to match each right signal
+        """
+        if forward:
+            record = tss.combine_forward(self.df, order, period, strict)
+        else:
+            record = tss.combine_backward(self.df, order, period, strict)
+        combined_df = tss.convert_record_to_signal(record, self.df['date'])
+        if suffix is None:
+            cols = [col for col in self.df if col == 'date' or col not in combined_df]
+            self.df = self.df[cols]
+        else:
+            rename_dict = {k: '%s_%s'%(k, suffix) for k in combined_df if k != 'date'}
+            combined_df = combined_df.rename(columns=rename_dict)
+        merged_df = self.df.merge(combined_df, on='date')
+        if inplace:
+            self.df = SDF(merged_df) 
+        else:
+            return SDF(merged_df)
 
 
     def record_to_date(self):
         if self.stat != 'record':
             raise OSError('Error: Could not convert. The status of StockDataFrame is not record. Use method \
                     "combine_backward" or "combine_forward" to get record StockDataFrame"')
-        return StockDataFrame(tss.convert_record_to_date(self.df, self.df['date']), stat='date_record')
+        return SDF(tss.convert_record_to_date(self.df, self.df['date']), stat='date_record')
 
 
     def record_to_signal(self):
         if self.stat != 'record':
             raise OSError('Error: Could not convert. The status of StockDataFrame is not record. Use method \
                     "combine_backward" or "combine_forward" to get record StockDataFrame"')
-        return StockDataFrame(tss.convert_record_to_date(self.df, self.df['date']))
+        return SDF(tss.convert_record_to_date(self.df, self.df['date']))
 
 
     def date_to_signal(self):
         if self.stat != 'date_record':
             raise OSError('Error: Could not convert. The status of StockDataFrame is not date_record. Use method \
                     "record_to_date" to get date_record StockDataFrame"')
-        return StockDataFrame(tss.convert_date_to_signal(self.df, self.df['date']))
-
-
-    def _last_min_simple(self, n=3, col='close', inplace=False):
-        # n: 平滑天数，小于n天的波动被忽略
-        s = self.df[col]
-        l = len(s)
-        keep_wave_days = [0 for _ in range(l)]
-        last_min_s = self.df[col].copy(deep=True)
-        up = True
-        for i in range(1, l):
-            if s[i-1] < s[i]:
-                if up:
-                    keep_wave_days[i] = keep_wave_days[i-1] + 1
-                else:
-                    keep_wave_days[i] = 1
-                    up = True
-            else:
-                if up:
-                    keep_wave_days[i] = -1
-                    up = False
-                else:
-                    keep_wave_days[i] = keep_wave_days[i-1] - 1
-
-        for i in range(1, l):
-            if keep_wave_days[i] == 1:
-                if i == 1:
-                    last_min_s[i] = last_min_s[i-1]
-                #NOTE:前一天那轮的连续下跌时间较短，讨论
-                elif -keep_wave_days[i-1] < n:
-                    last_max_idx = i - 1 - abs(keep_wave_days[i-1])
-                    last_min_idx = last_max_idx - abs(keep_wave_days[last_max_idx])
-                    # 考虑可能的越界，应该不存在，s[0] = 0
-                    #if last_min_idx < 0:
-                    #    print(i)
-                    #    last_min_s[i] = s[i-1]
-                    #NOTE: 【前一天(低点)】低于【上轮的低点】，认新低
-                    if s[i-1] < s[last_min_idx]:
-                        last_min_s[i] = s[i-1]
-                    #NOTE: 上一轮的低点更低，前一天认为是短时波动，抹平
-                    else:
-                        last_min_s[i] = last_min_s[last_max_idx]
-                #NOTE:前一天那轮的连续下跌超过n天，直接认定前一天为新低
-                else:
-                    last_min_s[i] = s[i-1]
-            else:
-                last_min_s[i] = last_min_s[i-1]
-
-        if inplace:
-            self.df[self._get_name(col+'_LASTMIN_'+str(n))] = last_min_s
-        else:
-            return StockSeries(last_min_s)
+        return SDF(tss.convert_date_to_signal(self.df, self.df['date']))
 
 
 if __name__ == '__main__':
@@ -235,5 +200,6 @@ if __name__ == '__main__':
     fb.add_signal('increase', 'MA_5')
     fb.sig_not('MA_5_increase')
     # print(fb.apply_time_series(['MA_5_increase'], df_w['date'], inplace=False))
-    print(fb.apply_time_series(['MA_5_increase', 'sig_not'], df_60['date'], inplace=False))
+    # print(fb.apply_time_series(['MA_5_increase', 'sig_not'], df_60['date'], inplace=False))
     print(fb.df.tail(30))
+    print(fb.combine(order=["MA_5_increase","sig_not"], forward=True, suffix=None))
