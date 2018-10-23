@@ -99,19 +99,25 @@ class FeatureBuilder():
             return SS(cur_signal, col_name)
 
 
-    def apply_time_series(self, in_col_names, date_s, inplace):
+    def apply_time_series(self, in_col_names, date_s, inplace, copy_when_padding=True, any_when_merging=True):
         """
+        copy_when_padding: only use when time scale of date_s is shorter than self.df. if True, copy signal 
+        value when date_s is shorter than self.df; if False, for each time in self.df, only the last time of 
+        date_s will be set as signal value, and others will be fill with 0
+        
+        any_when_merging: only use when time scale of date_s is larger than self.df. if True, the result will
+        set as 1 if there is at least one 1 signal during each time scale of self.df; if False, the result will 
+        set as 1 if all signals are 1 during each time scale of self.df.
+
         change signals [in_col_names] of [self.df] with time scale [date_s]
         NOTE: x+timedelta(hours=20) for D, x+timedelta(hours=22) for W
         """
         to_short_interval = True if date_s[1] - date_s[0] <= self.df.date[1] - self.df.date[0] else False
         if to_short_interval:
             df = pd.DataFrame(0, index=date_s, columns=in_col_names)
-
-            #TODO: check errors
             df_idx = pd.DataFrame(date_s)
             df_idx['idx'] = 0
-            ll, lb = range(len(self.df.date)),  list(self.df.date) + [Timestamp(1999999999999999999), ]
+            ll, lb = range(len(self.df.date)),  list(self.df.date) + [Timestamp(3999999999999999999), ]
             df_idx.idx = pd.cut(df_idx.date, bins=lb, labels=ll)
             d_idx = df_idx.set_index('date').to_dict()['idx']
             df_data = self.df[['date']+in_col_names].copy(deep=True)[in_col_names] # df_data = self.df[in_col_names]
@@ -130,39 +136,6 @@ class FeatureBuilder():
             self.df = df
         else:
             return SDF(df)
-
-
-    def to_coarse_grained(self, signal_cols, df_cg):
-        """
-        combine fine-grained signal to coarse-grained
-        NOTE: x+timedelta(hours=20) for D, x+timedelta(hours=22) for W
-        """
-        if df_cg.date[1]-df_cg.date[0] <= self.df.date[1]-self.df.date[0]:
-            raise OSError('Error: given "df_cg" is fine-grained than df.')
-        #data_cols = ['open', 'close', 'high', 'low', 'volume', 'amount', 'tor']
-        #signals = [col for col in self.df.columns if col not in data_cols]
-        #df = self.df[signals].copy(deep=True)
-        df = self.df[signal_cols].copy(deep=True)
-        ll, lb = list(df_cg.date), [Timestamp(0), ] + list(df_cg.date)
-        df.date = pd.cut(self.df.date, bins=lb, labels=ll)
-        df = df.groupby(df.date).sum().clip_upper(1).reset_index(drop=True)
-        df = pd.concat([df_cg, df], axis=1)
-        return StockDataFrame(df)
-
-
-    def to_fine_grained(self, signal_cols, df_fg):
-        if df_fg.date[1]-df_fg.date[0] >= self.df.date[1]-self.df.date[0]:
-            raise OSError('Error: given "df_fg" is coarse-grained than df.')
-        df = pd.DataFrame(0, index=df_fg.date, columns=signal_cols)
-
-        df_idx = df_fg[['date',]]
-        df_idx['idx'] = 0
-        ll, lb = range(len(self.df.date)), [Timestamp(0), ] + list(self.df.date)
-        df_idx.idx = pd.cut(df_idx.date, bins=lb, labels=ll)
-        d_idx = df_idx.set_index('date').to_dict()['idx']
-        df_data = self.df[signal_cols]
-        df = df.apply(lambda x: df_data.ix[d_idx[x.name]], axis=1)
-        return df
 
 
     def combine_backward(self, order, period=30, strict=[]):
@@ -262,5 +235,5 @@ if __name__ == '__main__':
     fb.add_signal('increase', 'MA_5')
     fb.sig_not('MA_5_increase')
     # print(fb.apply_time_series(['MA_5_increase'], df_w['date'], inplace=False))
-    print(fb.apply_time_series(['MA_5_increase'], df_60['date'], inplace=False))
+    print(fb.apply_time_series(['MA_5_increase', 'sig_not'], df_60['date'], inplace=False))
     print(fb.df.tail(30))
