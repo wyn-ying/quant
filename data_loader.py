@@ -163,28 +163,28 @@ class DataLoader():
         tmp_fail_code_list = []
         fail_code_list = []
 
-        def update_one_code(code, i, processors, utils, get_stock_data, update_stock_data):
+        def update_one_code(code, idx, processors, utils, get_stock_data, update_stock_data):
             try:
-                utils.logger.info('start downloading new data %s, i: %s, processor: %s'%(code, i, processors))
                 conn = ts.get_apis()
-                for i in range(3):
-                    new_data_df = get_stock_data(code, start_date, end_date, 'web_bar', conn, autype)
-                    if new_data_df is not None and len(new_data_df)>0:
-                        break
-                    else:
-                        t = random.choice([1.1,1.3,1.5])
-                        time.sleep(t)
-
+                new_data_df = None
+                utils.logger.info('start downloading new data %s, i: %s, processor: %s'%(code, idx, processors))
+                new_data_df = get_stock_data(code, start_date, end_date, 'web_bar', conn, autype)
                 ts.close_apis(conn)
-                update_stock_data(code, new_data_df, 'fs', fs_path, autype)
+                utils.logger.info('close apis for %s, i: %s, processor: %s'%(code, idx, processors))
                 t = random.choice([1.1,1.3,1.5])
                 time.sleep(t)
-                utils.logger.info('finish process new data %s, i: %s, processor: %s'%(code, i, processors))
+                if new_data_df is not None:
+                    if len(new_data_df)>0:
+                        utils.logger.info('get new data %s, i: %s, processor: %s'%(code, idx, processors))
+                    else:
+                        utils.logger.info('length of data %s is 0, i: %s, processor: %s'%(code, idx, processors))
+                    update_stock_data(code, new_data_df, 'fs', fs_path, autype)
+                    utils.logger.info('finish process new data %s, i: %s, processor: %s'%(code, idx, processors))
                 return None if new_data_df is not None and len(new_data_df) > 0 else code
             except OSError as err:
-                self.utils.logger.info('Error: could not update %s. err msg: %s \nadding to list and will try again later.'%(code, err))
-                fail_code_list.append(code)
                 ts.close_apis(conn)
+                utils.logger.info('close apis for %s, i: %s, processor: %s'%(code, idx, processors))
+                self.utils.logger.info('Error: could not update %s. err msg: %s \nadding to list and will try again later.'%(code, err))
                 t = random.choice([20,30,25])
                 time.sleep(t)
                 return code
@@ -218,9 +218,8 @@ class DataLoader():
         pool = ThreadPool(processors)
         results = []
         for i, code in enumerate(tmp_fail_code_list):
-            cur_conn = conn[i%processors]
             r = pool.apply_async(update_one_code,
-                        args=(code, i, i%processor, self.utils, self.get_stock_data, self.update_stock_data,))
+                        args=(code, i, i%processors, self.utils, self.get_stock_data, self.update_stock_data,))
             results.append(r)
         pool.close()
         pool.join()
@@ -260,7 +259,7 @@ class DataLoader():
 
         for code in new_code_set:
             lastday_code_df = lastday_all_df[lastday_all_df['code']==code]
-            old_df = get_stock_data(code, way='fs')
+            old_df = self.get_stock_data(code, way='fs')
             if lastday_date not in set(old_df['date']):
                 print('Warning: ', code, ' the last trade date in filesystem is not match with it in web.')
                 print('    jump to next stock code. if all code makes warning, change the param "last_date".')
@@ -303,7 +302,8 @@ class DataLoader():
             if lastday_all_df is not None:
                 break
         if lastday_all_df is None:
-            raise e
+            pass
+            # raise e
         return lastday.strftime('%Y-%m-%d'), lastday_all_df
 
 
@@ -318,6 +318,6 @@ class DataLoader():
 if __name__ == "__main__":
     dl = DataLoader()
     # dl.update_all_stock_data('2018-09-09','2018-09-15', autype='D')
-    # dl.update_all_stock_data('2017-12-19','2018-09-15', autype='D')
-    dl.update_all_stock_data('2017-12-19','2018-09-15', autype='W')
-    dl.update_all_stock_data('2017-12-19','2018-09-15', autype='60MIN')
+    dl.update_all_stock_data('2018-09-15','2018-10-20', autype='D')
+    dl.update_all_stock_data('2018-09-15','2018-10-20', autype='W')
+    dl.update_all_stock_data('2018-09-15','2018-10-20', autype='60MIN')
