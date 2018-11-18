@@ -132,7 +132,7 @@ class Utils(object):
 
    #date
     def get_logdate(self, basedate='today', offset=None, fmt='%Y-%m-%d'):
-        assert type(offset) == int, 'TypeError: the type of parameter offset should be int'
+        assert type(offset) == int or offset is None, 'TypeError: the type of parameter offset should be int'
         offset = 0 if offset is None else offset
         if basedate == 'today':
             rdate = (datetime.date.today() + datetime.timedelta(days = offset)).strftime(fmt)
