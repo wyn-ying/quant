@@ -3,7 +3,8 @@
 
 from qntstock.local import FS_PATH, FS_PATH_OL, token
 from qntstock.utils import Utils
-from multiprocessing.pool import ThreadPool, Pool
+from multiprocessing.pool import ThreadPool
+from pymongo import DESCENDING, ASCENDING
 import tushare as ts
 import pandas as pd
 import os
@@ -17,10 +18,10 @@ class DataLoader():
         self.fs_path = fs_path if fs_path is not None else FS_PATH
         if not os.path.exists(self.fs_path):
             raise OSError('path %s does not exist.'%self.fs_path)
-        self.standard_cols = ['date','open','close','high','low','volume','amount','tor']
+        self.standard_cols = ['date','open','close','high','low','volume','tor']
         self.utils = Utils()
 
-    def get_stock_data(self, code, start_date=None, end_date=None, way='fs', way_path=None, autype='D'):
+    def get_stock_data(self, code, start_date=None, end_date=None, way='db', way_path=None, autype='hfq', ktype='D', ex_cols=None):
         '''
         get stock data df
 
@@ -32,8 +33,6 @@ class DataLoader():
                 'fs':   way_path should be given a path that saving all pre-download stock data files. if default,
                 using FS_PATH in local.py. if no stock code in the path, return an empty pd.DataFrame()
 
-                'web_bar': way_path should be given a conn handle for ts.bar(...,conn,...) param, should using a ts.get_apis()
-
                 'web_k': do not need way_path
 
                 # 'db':   way_path should be given a series of using databases. if default, using 'stock' series. if no
@@ -42,20 +41,42 @@ class DataLoader():
         return dataframe
         '''
 
-        if way not in ['csv', 'fs', 'web_bar', 'web_k']:
+        if way not in ['csv', 'fs', 'web_bar', 'web_k', 'db']:
             raise OSError('"way" accept for "csv", "fs", "web".')
 
         if way =='fs':
             if way_path is None:
                 way_path = self.fs_path
-            way_path = os.path.join(way_path, autype, '%s.csv'%code)
+            way_path = os.path.join(way_path, ktype, '%s.csv'%code)
 
         if way in ['csv', 'fs'] and not os.path.exists(way_path):
             raise OSError('file ', way_path, 'does not exist.')
 
-        if way == 'web_bar':
+        if way == 'db':
+            if way_path is None:
+                way_path = 'kdata'
+            conn = self.utils.get_conn()
+            db = conn[way_path]
+            coll = db[ktype]
+            query = {'code': code, }
+            if start_date is not None or end_date is not None:
+                query['date'] = {}
+                if start_date is not None:
+                    query['date']['$gte'] = start_date
+                if end_date is not None:
+                    query['date']['$lte'] = end_date
+
+            df = pd.DataFrame(list(coll.find(query)))
+            cols = self.standard_cols + ex_cols if ex_cols is not None else self.standard_cols
+            df = df[cols]
+
+        elif way == 'web_k':
+            df = ts.get_k_data(code, start_date, end_date, autype=autype, ktype=ktype)
+        
+        # deprecated
+        elif way == 'web_bar':
             conn = way_path
-            df = ts.bar(code, conn=conn, start_date=start_date, end_date=end_date, adj='hfq', freq=autype, factors=['tor'])
+            df = ts.bar(code, conn=conn, start_date=start_date, end_date=end_date, adj=autype, freq=ktype, factors=['tor'])
             if df is not None and len(df) > 0:
                 df = df.reset_index().sort_values('datetime')
                 df = df.rename(columns={'datetime':'date', 'vol':'volume'})
@@ -63,15 +84,13 @@ class DataLoader():
             else:
                 df = pd.DataFrame(None, columns=self.standard_cols)
         
-        elif way == 'web_k':
-            df = ts.get_k_data(code, start_date, end_date, autype=None)
         else:   #'csv' or 'fs'
             df = pd.read_csv(way_path)
 
             if way == 'csv' and not set(self.standard_cols).issubset(set(df.columns)):
                 raise OSError('the csv file does not contain the necessary columns:\n%s'%self.standard_cols)
 
-            if autype in ['1MIN','5MIN','15MIN','30MIN','60MIN']:
+            if ktype in ['1MIN','5MIN','15MIN','30MIN','60MIN']:
                 end_date = end_date+' 24:00:00'
                 start_date = start_date+' 00:00:00'
             if start_date is not None and end_date is not None:
@@ -86,6 +105,127 @@ class DataLoader():
         df = df.reset_index(drop=True)
         return df
 
+    def update_all(self, start_date, end_date=None, code_set=None, processors=10):
+        if end_date is None:
+            end_date = self.utils.get_logdate('today')
+        # 每天的code基本面数据，写入基本面表
+
+        date_list = self.utils.get_date_list(start_date, end_date)
+        for date in date_list:
+            try:
+                cur_code_df = ts.get_day_all(date)
+                if cur_code_df is not None and len(cur_code_df)>0:
+                    self.utils.update_daily_df(date, cur_code_df, 'basic', 'dayall')
+            except HTTPError as err:
+                    if err.msg == 'Not Found':
+                        self.utils.logger.warning('date: %s, ts.get_day_all return no data.'%date)
+                    else:
+                        raise err
+        self.utils.logger.info("基本面数据写入完成...")
+
+        # 更新天级k线hfq数据，写入周级表
+        def process_one_code_d(code, start_date, end_date):
+            utils = Utils()
+            utils.logger.info("处理%s日k线数据..."%code)
+            df = ts.get_k_data(code, start_date, end_date, autype='hfq', ktype='D')
+            # 计算复权因子，写入基本面表
+            records = utils.find_code_date( 'basic', 'dayall', code, start_date, end_date)
+            if len(df) <= 0:
+                return
+            df['tor'] = df['date'].apply(lambda x: records[x]['turnover'] if x in records.keys() else None)
+            utils.update_kdata_df(code, df, 'kdata', 'D')
+            for date in df.date:
+                if date not in records.keys():
+                    utils.logger.warning("股票代码%s 在%s 没有基本面数据，且存在日k线数据，待人工确认..."%(code, date))
+                    return
+                nfq_open = records[date]['open']
+                hfq_open = df[df.date==date].open.values[0]
+                aufactor = hfq_open / nfq_open
+                docs.append({'code': code, 'date': date, 'aufactor': aufactor})
+            utils.update_doc(docs, 'basic', 'dayall')
+
+        if code_set is None:
+            code_set = self.utils.get_all_code_list(start_date, end_date)    
+        docs = []
+        pool = ThreadPool(processors)
+        for code in code_set:
+            pool.apply_async(process_one_code_d, args=(code, start_date, end_date))
+        pool.close()
+        pool.join()
+        self.utils.logger.info("日k线数据写入完成，后复权因子写入基本面表完成...")
+
+        # 更新周级k线hfq数据，写入周级表
+        def process_one_code_w(code, start_date, end_date):
+            utils = Utils()
+            utils.logger.info("处理%s周k线数据..."%code)
+            df = ts.get_k_data(code, start_date, end_date, autype='hfq', ktype='W')
+            if len(df) <= 0:
+                return
+            records = utils.find_code_date( 'basic', 'dayall', code, start_date, end_date)
+            daily_date_list = sorted(records.keys())
+            weekly_date_set = set(df['date'])
+            if len(weekly_date_set-set(daily_date_list))>0:
+                utils.logger.warning('在股票代码%s中，以下日期存在周k线数据但不存在基本面对应数据，待人工确认...%s'%(code, weekly_date_set-set(daily_date_list)))
+            tor_dic = {}
+            cur_tor = 0
+            for date in daily_date_list:
+                cur_tor += records[date]['turnover']
+                if date in weekly_date_set:
+                    tor_dic[date] = cur_tor
+                    cur_tor = 0
+            df['tor'] = df['date'].apply(lambda x: tor_dic[x] if x in tor_dic.keys() else 0)
+            df = df[['date','open','close','high','low','volume','tor','code']]
+            utils.update_kdata_df(code, df, 'kdata', 'W')
+
+        if code_set is None:
+            code_set = self.utils.get_all_code_list(start_date, end_date)    
+        pool = ThreadPool(processors)
+        for code in code_set:
+            pool.apply_async(process_one_code_w, args=(code, start_date, end_date))
+        pool.close()
+        pool.join()
+        self.utils.logger.info("周k线数据写入完成...")
+
+        # 更新分钟k线数据 （可能是多个分钟级k线list）
+        def process_one_code_Mn(code, start_date, end_date, ktype):
+            utils = Utils()
+            utils.logger.info("处理%s %s分钟k线数据..."%(code, ktype))
+            df = ts.get_k_data(code, start_date, end_date, autype='hfq', ktype=ktype)
+            if len(df) == 0:
+                return
+            df = df[(df['date']>=start_date) & (df['date']<=(end_date+'-'))]
+            if len(df) == 0:
+                return
+            #   读每天的复权因子字段，使用复权因子更新价格
+            records = utils.find_code_date('basic', 'dayall', code, start_date, end_date)
+            #TODO: 如果没有，应该保持和前一天一样的aufactor
+            cur_date_set = set(df['date'].apply(lambda x: x[0:10]))
+            basic_date_set = set(records.keys())
+            if len(cur_date_set-basic_date_set)>0:
+                utils.logger.warning('在股票代码%s中，以下日期存在k线数据但不存在基本面对应数据，待人工确认... %s'%(code, cur_date_set-basic_date_set))
+            df['aufactor'] = df['date'].apply(lambda x: records[x[0:10]]['aufactor'] if x[0:10] in records.keys() else 1)
+            for col in ('open','close','high','low'):
+                df[col] = round(df[col] * df['aufactor'], 3)
+            #   使用全天交易量和换手率更新换手率
+            for _, r in records.items():
+                if r['volume'] > 0:
+                    r['tor_p_v'] = r['turnover'] / r['volume']
+                else:
+                    r['tor_p_v'] = int(ktype) / 240.0
+            df['tor'] = df.apply(lambda x: records[x['date'][0:10]]['tor_p_v']*x['volume'] if x['date'][0:10] in records.keys() else 0, axis=1)
+            df = df[['date','open','close','high','low','volume','tor','code']]
+            utils.update_kdata_df(code, df, 'kdata', 'M'+ktype)
+        
+        if code_set is None:
+            code_set = self.utils.get_all_code_list(start_date, end_date)
+        for ktype in ('60',):
+            pool = ThreadPool(processors)
+            for code in code_set:
+                pool.apply_async(process_one_code_Mn, args=(code, start_date, end_date, ktype))
+            pool.close()
+            pool.join()
+            self.utils.logger.info("%s分钟k线数据写入完成..."%ktype)
+        
     def update_stock_data(self, code, new_data_df, way='csv', way_path=None, autype='D'):
         '''
         update stock data using new_data_df, if one day exist in new_data_df, using values in new_data_df.
@@ -318,6 +458,4 @@ class DataLoader():
 if __name__ == "__main__":
     dl = DataLoader()
     # dl.update_all_stock_data('2018-09-09','2018-09-15', autype='D')
-    dl.update_all_stock_data('2018-09-15','2018-10-20', autype='D')
-    dl.update_all_stock_data('2018-09-15','2018-10-20', autype='W')
-    dl.update_all_stock_data('2018-09-15','2018-10-20', autype='60MIN')
+    dl.update_all('2018-09-09')
