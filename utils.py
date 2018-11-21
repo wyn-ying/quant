@@ -158,6 +158,9 @@ class Utils(object):
             cur_date = self.get_logdate(cur_date, 1)
         return date_list
 
+    def get_weekly_date(self, date, week_day=0, fmt='%Y-%m-%d'):
+        cur_week_day = datetime.datetime.strptime(date, fmt).weekday()
+        return self.get_logdate(date, week_day-cur_week_day)
 
 class ProgressBar:
     def __init__(self, count=0, total=0, width=50):

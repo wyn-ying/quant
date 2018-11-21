@@ -70,6 +70,16 @@ class DataLoader():
             cols = self.standard_cols + ex_cols if ex_cols is not None else self.standard_cols
             df = df[cols]
 
+            if ktype == 'W':
+                func = self.utils.get_weekly_date
+                df = df[df['volume']>10]
+                df = df.sort_values('date')
+                df['cur_tag'] = df['date'].apply(lambda x: func(x))
+                df['next_tag'] = df['cur_tag'].shift(-1)
+                df['should_drop'] = df.apply(lambda x: 1 if x['next_tag'] == x['cur_tag'] else 0, axis=1)
+                df = df[df['should_drop']==0]
+                df = df.drop(['cur_tag', 'next_tag', 'should_drop'], axis=1)
+                
         elif way == 'web_k':
             df = ts.get_k_data(code, start_date, end_date, autype=autype, ktype=ktype)
         
@@ -108,11 +118,14 @@ class DataLoader():
     def update_all(self, start_date, end_date=None, code_set=None, processors=10):
         if end_date is None:
             end_date = self.utils.get_logdate('today')
+
+        self.utils.logger.info("开始日期 %s, 结束日期 %s"%(start_date, end_date))
         # 每天的code基本面数据，写入基本面表
 
         date_list = self.utils.get_date_list(start_date, end_date)
         for date in date_list:
             try:
+                self.utils.logger.info('日期 %s'%date)
                 cur_code_df = ts.get_day_all(date)
                 if cur_code_df is not None and len(cur_code_df)>0:
                     self.utils.update_daily_df(date, cur_code_df, 'basic', 'dayall')
@@ -458,4 +471,6 @@ class DataLoader():
 if __name__ == "__main__":
     dl = DataLoader()
     # dl.update_all_stock_data('2018-09-09','2018-09-15', autype='D')
-    dl.update_all('2018-09-09')
+    u = Utils()
+    date = u.get_logdate('today')
+    dl.update_all(date)
